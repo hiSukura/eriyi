@@ -75,12 +75,57 @@ CREATE TABLE IF NOT EXISTS settings (
     updated_at TEXT DEFAULT (datetime('now', 'localtime'))
 );
 
+-- 在线心跳表（作息守护）
+CREATE TABLE IF NOT EXISTS presence_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT DEFAULT (datetime('now', 'localtime')),
+    source TEXT DEFAULT 'unknown',
+    event_type TEXT DEFAULT 'heartbeat',
+    extra_data TEXT DEFAULT '{}'
+);
+
+-- 日记时刻表（日记v2.0 — 全天候片段）
+CREATE TABLE IF NOT EXISTS diary_moments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT NOT NULL,
+    timestamp TEXT DEFAULT (datetime('now', 'localtime')),
+    time_period TEXT DEFAULT '未知',
+    mood TEXT DEFAULT '安静',
+    content TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now', 'localtime'))
+);
+
+-- 通知日志表
+CREATE TABLE IF NOT EXISTS notification_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT DEFAULT (datetime('now', 'localtime')),
+    channel TEXT DEFAULT 'qqmail',
+    trigger_type TEXT DEFAULT 'unknown',
+    status TEXT DEFAULT 'pending',
+    subject TEXT DEFAULT ''
+);
+
+-- 情绪评估表（4.6 情绪感知）
+CREATE TABLE IF NOT EXISTS mood_assessments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT DEFAULT (datetime('now', 'localtime')),
+    date TEXT NOT NULL,
+    mood_label TEXT DEFAULT '安静',
+    confidence REAL DEFAULT 0.5,
+    signals TEXT DEFAULT '{}',
+    suggestion TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now', 'localtime'))
+);
+
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_diaries_date ON diaries(date);
 CREATE INDEX IF NOT EXISTS idx_memory_events_date ON memory_events(date);
 CREATE INDEX IF NOT EXISTS idx_memory_events_category ON memory_events(category);
 CREATE INDEX IF NOT EXISTS idx_state_history_timestamp ON state_history(timestamp);
 CREATE INDEX IF NOT EXISTS idx_voice_files_category ON voice_files(category);
+CREATE INDEX IF NOT EXISTS idx_presence_timestamp ON presence_events(timestamp);
+CREATE INDEX IF NOT EXISTS idx_diary_moments_date ON diary_moments(date);
+CREATE INDEX IF NOT EXISTS idx_mood_assessments_date ON mood_assessments(date);
 """
 
 

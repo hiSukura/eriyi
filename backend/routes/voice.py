@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
 from services import voice_service
+from config import VOICE_DIR
 
 router = APIRouter(prefix="/api/voices", tags=["语音"])
 
@@ -17,10 +18,15 @@ async def list_voices():
     """获取语音文件列表"""
     voices = voice_service.get_all_voices()
     categories = voice_service.get_voice_categories()
+    narration = voice_service.get_narration_sentences()
     return {
         "count": len(voices),
         "categories": categories,
         "items": voices,
+        "narration": {
+            "count": len(narration),
+            "sentences": narration,
+        },
     }
 
 
@@ -59,3 +65,26 @@ async def sync_voices():
     """从文件系统同步语音到数据库"""
     count = voice_service.sync_voice_files_to_db()
     return {"message": f"已同步 {count} 个语音文件"}
+
+
+# ── 念白路由 ──
+@router.get("/narration")
+async def list_narration():
+    """获取念白分句列表"""
+    return voice_service.get_narration_sentences()
+
+
+@router.get("/narration/{filename}")
+async def stream_narration(filename: str):
+    """流式传输念白分句 WAV"""
+    path = VOICE_DIR / "念白_分句" / "sentences" / filename
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"念白文件 {filename} 不存在")
+    return FileResponse(
+        path=str(path),
+        media_type="audio/wav",
+        headers={
+            "Content-Length": str(path.stat().st_size),
+            "Accept-Ranges": "bytes",
+        },
+    )

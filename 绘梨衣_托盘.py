@@ -14,6 +14,9 @@ import signal
 import subprocess
 import webbrowser
 import atexit
+import threading
+import time
+import urllib.request
 from pathlib import Path
 
 import pystray
@@ -162,6 +165,44 @@ def stop_backend():
 # 确保退出时清理
 atexit.register(stop_backend)
 
+# ═══════════════════════════════════════════════════
+# 作息守护 · 心跳
+# ═══════════════════════════════════════════════════
+
+_heartbeat_thread = None
+_heartbeat_running = False
+HEARTBEAT_URL = "http://127.0.0.1:5432/api/presence/heartbeat?source=tray"
+HEARTBEAT_INTERVAL = 5 * 60  # 5分钟
+
+
+def _heartbeat_loop():
+    """后台心跳线程：每5分钟向后端报告托盘存活"""
+    global _heartbeat_running
+    while _heartbeat_running:
+        try:
+            urllib.request.urlopen(
+                urllib.request.Request(HEARTBEAT_URL, method="POST"),
+                timeout=3,
+            )
+        except Exception:
+            pass  # 后端未启动时静默跳过
+        time.sleep(HEARTBEAT_INTERVAL)
+
+
+def start_heartbeat():
+    """启动心跳线程"""
+    global _heartbeat_thread, _heartbeat_running
+    _heartbeat_running = True
+    _heartbeat_thread = threading.Thread(target=_heartbeat_loop, daemon=True)
+    _heartbeat_thread.start()
+    print("[绘梨衣] 作息守护心跳已启动 (每5分钟)")
+
+
+def stop_heartbeat():
+    """停止心跳线程"""
+    global _heartbeat_running
+    _heartbeat_running = False
+
 
 # ═══════════════════════════════════════════════════
 # 菜单动作
@@ -225,10 +266,13 @@ def main():
     # 1. 启动后端
     start_backend()
 
-    # 2. 生成灯笼图标
+    # 2. 启动作息守护心跳
+    start_heartbeat()
+
+    # 3. 生成灯笼图标
     icon_image = create_lantern_icon(ICON_SIZE)
 
-    # 3. 创建托盘
+    # 4. 创建托盘
     icon = pystray.Icon(
         name="绘梨衣",
         icon=icon_image,
@@ -240,12 +284,13 @@ def main():
     print("[绘梨衣] 右键 → 仪表盘/门户/退出")
     print()
 
-    # 4. 运行消息循环（阻塞直到 icon.stop()）
+    # 5. 运行消息循环（阻塞直到 icon.stop()）
     try:
         icon.run()
     except KeyboardInterrupt:
         pass
     finally:
+        stop_heartbeat()
         stop_backend()
 
 

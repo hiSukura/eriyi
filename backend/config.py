@@ -27,6 +27,9 @@ DIARY_DIR = PROJECT_ROOT / "绘梨衣日记"
 # 记忆目录
 MEMORY_DIR = PROJECT_ROOT / ".workbuddy" / "memory"
 
+# 声音克隆目录
+VOICE_CLONE_DIR = PROJECT_ROOT / "voice_clone"
+
 # 服务配置
 HOST = os.environ.get("ELISHA_HOST", "127.0.0.1")
 PORT = int(os.environ.get("ELISHA_PORT", "5432"))

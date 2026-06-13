@@ -63,3 +63,37 @@ async def sync_diaries():
     """从文件系统同步日记到数据库"""
     count = diary_service.sync_diary_files_to_db()
     return {"message": f"已同步 {count} 篇日记"}
+
+
+# ═══════════════════════════════════════
+# 日记v2.0 · 时刻 API
+# ═══════════════════════════════════════
+
+@router.post("/moments")
+async def add_moment(data: dict):
+    """添加一个日记时刻"""
+    date_str = data.get("date", None)
+    if not date_str:
+        from datetime import datetime
+        date_str = datetime.now().strftime("%Y-%m-%d")
+
+    return diary_service.add_moment(
+        date_str=date_str,
+        content=data.get("content", ""),
+        mood=data.get("mood", "安静"),
+        time_period=data.get("time_period", "未知"),
+    )
+
+
+@router.get("/moments/today")
+async def today_moments():
+    """获取今日全部时刻"""
+    moments = diary_service.get_today_moments()
+    return {"count": len(moments), "moments": moments}
+
+
+@router.get("/moments/{date}")
+async def date_moments(date: str):
+    """获取指定日期的所有时刻"""
+    moments = diary_service.get_moments_by_date(date)
+    return {"date": date, "count": len(moments), "moments": moments}

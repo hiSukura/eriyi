@@ -3,7 +3,7 @@
 """
 from fastapi import APIRouter
 
-from services import state_service, diary_service, memory_service, voice_service
+from services import state_service, diary_service, memory_service, voice_service, presence_service, milestone_service
 
 router = APIRouter(prefix="/api/dashboard", tags=["仪表盘"])
 
@@ -34,7 +34,7 @@ async def dashboard_data():
         "diary_count": diary_service.get_diary_count(),
         "voice_count": sum(voice_categories.values()) if voice_categories else 0,
         "memory_count": mem_stats["total"],
-        "milestone_count": mem_stats.get("milestone_count", 0),
+        "milestone_count": milestone_service.get_milestone_count(),
     }
 
     return {
@@ -44,4 +44,7 @@ async def dashboard_data():
         "recent_memories": recent_memories,
         "voice_categories": voice_categories,
         "stats": stats,
+        "presence": presence_service.analyze_today_pattern(),
+        "moments": diary_service.get_today_moments(),
+        "recent_milestones": milestone_service.get_recent_milestones(limit=5),
     }

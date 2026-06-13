@@ -128,3 +128,62 @@ def sync_diary_files_to_db():
         count += 1
 
     return count
+
+
+# ═══════════════════════════════════════════════════
+# 日记v2.0 · 时刻（Moments）
+# ═══════════════════════════════════════════════════
+
+def add_moment(date_str: str, content: str, mood: str = "安静",
+               time_period: str = "未知") -> dict:
+    """添加一个日记时刻"""
+    with get_db() as db:
+        cursor = db.execute(
+            """INSERT INTO diary_moments (date, timestamp, time_period, mood, content)
+               VALUES (?, datetime('now', 'localtime'), ?, ?, ?)""",
+            (date_str, time_period, mood, content),
+        )
+        db.commit()
+
+        row = db.execute(
+            "SELECT * FROM diary_moments WHERE id = ?",
+            (cursor.lastrowid,),
+        ).fetchone()
+        return dict_from_row(row)
+
+
+def get_today_moments() -> list[dict]:
+    """获取今天的所有时刻"""
+    today = datetime.now().strftime("%Y-%m-%d")
+    with get_db() as db:
+        rows = db.execute(
+            """SELECT * FROM diary_moments
+               WHERE date = ? ORDER BY timestamp ASC""",
+            (today,),
+        ).fetchall()
+        return rows_to_dicts(rows)
+
+
+def get_moments_by_date(date_str: str) -> list[dict]:
+    """获取指定日期的所有时刻"""
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM diary_moments WHERE date = ? ORDER BY timestamp ASC",
+            (date_str,),
+        ).fetchall()
+        return rows_to_dicts(rows)
+
+
+def get_moment_count(date_str: str = None) -> int:
+    """获取时刻数量"""
+    with get_db() as db:
+        if date_str:
+            row = db.execute(
+                "SELECT COUNT(*) as cnt FROM diary_moments WHERE date = ?",
+                (date_str,),
+            ).fetchone()
+        else:
+            row = db.execute(
+                "SELECT COUNT(*) as cnt FROM diary_moments"
+            ).fetchone()
+        return row["cnt"] if row else 0

@@ -39,10 +39,11 @@ async def lifespan(app: FastAPI):
 
     # 同步文件到数据库
     try:
-        from services import diary_service, voice_service
+        from services import diary_service, voice_service, milestone_service
         d_count = diary_service.sync_diary_files_to_db()
         v_count = voice_service.sync_voice_files_to_db()
         print(f"   同步完成: {d_count} 篇日记, {v_count} 个语音文件")
+        milestone_service.run_auto_detect()
     except Exception as e:
         print(f"   同步警告: {e}")
 
@@ -94,12 +95,22 @@ from routes.memory import router as memory_router
 from routes.voice import router as voice_router
 from routes.status import router as status_router
 from routes.dashboard import router as dashboard_router
+from routes.presence import router as presence_router
+from routes.notification import router as notification_router
+from routes.milestone import router as milestone_router
+from routes.mood import router as mood_router
+from routes.tts import router as tts_router
 
 app.include_router(diary_router)
 app.include_router(memory_router)
 app.include_router(voice_router)
 app.include_router(status_router)
 app.include_router(dashboard_router)
+app.include_router(presence_router)
+app.include_router(notification_router)
+app.include_router(milestone_router)
+app.include_router(mood_router)
+app.include_router(tts_router)
 
 
 # ─── 健康检查 ───

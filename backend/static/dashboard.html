@@ -346,7 +346,7 @@
       <div>
         <div class="header-title">绘梨衣</div>
         <div class="header-subtitle">
-          <span class="status-dot"></span> Phase 3 · 持久在线
+          <span class="status-dot"></span> Phase 4 · 主动关怀
         </div>
       </div>
     </div>
@@ -374,6 +374,38 @@
       <div class="card-title">今日日记</div>
       <div id="todayDiary">
         <div class="diary-preview loading">加载中...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 作息守护面板 -->
+  <div class="grid grid-2" style="margin-bottom: 20px;">
+    <div class="card" id="presenceCard">
+      <div class="card-title">🌙 作息守护</div>
+      <div id="presenceContent">
+        <div class="loading" style="font-size:13px;color:var(--text-dim);">加载中...</div>
+      </div>
+    </div>
+    <!-- 快捷入口 -->
+    <div class="card">
+      <div class="card-title">快捷入口</div>
+      <div class="quick-links">
+        <a class="quick-link" href="/page/入口">
+          <div class="quick-link-icon">🏠</div>
+          <div class="quick-link-text">门户首页</div>
+        </a>
+        <a class="quick-link" href="/page/语音馆">
+          <div class="quick-link-icon">🎤</div>
+          <div class="quick-link-text">语音馆</div>
+        </a>
+        <a class="quick-link" href="/page/记忆长廊">
+          <div class="quick-link-icon">💭</div>
+          <div class="quick-link-text">记忆长廊</div>
+        </a>
+        <a class="quick-link" href="/page/日记本">
+          <div class="quick-link-icon">📖</div>
+          <div class="quick-link-text">日记本</div>
+        </a>
       </div>
     </div>
   </div>
@@ -417,29 +449,6 @@
       <div style="margin-top: 12px; font-size: 12px; color: var(--text-dim);">
         <a href="/page/语音馆" style="color: var(--red-light); text-decoration: none;">→ 打开语音馆</a>
       </div>
-    </div>
-  </div>
-
-  <!-- 快捷入口 -->
-  <div class="card" style="margin-bottom: 20px;">
-    <div class="card-title">快捷入口</div>
-    <div class="quick-links">
-      <a class="quick-link" href="/page/入口">
-        <div class="quick-link-icon">🏠</div>
-        <div class="quick-link-text">门户首页</div>
-      </a>
-      <a class="quick-link" href="/page/语音馆">
-        <div class="quick-link-icon">🎤</div>
-        <div class="quick-link-text">语音馆</div>
-      </a>
-      <a class="quick-link" href="/page/记忆长廊">
-        <div class="quick-link-icon">💭</div>
-        <div class="quick-link-text">记忆长廊</div>
-      </a>
-      <a class="quick-link" href="/page/日记本">
-        <div class="quick-link-icon">📖</div>
-        <div class="quick-link-text">日记本</div>
-      </a>
     </div>
   </div>
 
@@ -525,6 +534,15 @@ function renderDashboard(data) {
   // 移除加载动画
   document.querySelectorAll('.loading').forEach(el => el.classList.remove('loading'));
 
+  // 作息守护
+  renderPresence(data.presence);
+
+  // 情绪感知
+  renderMood(data.mood);
+
+  // 最近里程碑（追加到记忆面板后）
+  renderMilestones(data.recent_milestones || []);
+
   // 今日日记
   const diary = data.today_diary;
   const diaryDiv = document.getElementById('todayDiary');
@@ -542,6 +560,28 @@ function renderDashboard(data) {
     `;
   } else {
     diaryDiv.innerHTML = '<div class="diary-preview" style="color: var(--text-dim);">今天还没有日记。\n晚上 22:00 会自动生成。</div>';
+  }
+
+  // 今日时刻
+  const moments = data.moments || [];
+  if (moments.length > 0) {
+    const momentsHTML = moments.map(m => `
+      <div class="memory-item" style="padding:6px 0;">
+        <div class="memory-date">${(m.timestamp || '').slice(11, 16)}</div>
+        <div class="memory-content" style="font-size:12px;color:var(--text-dim);">
+          ${escapeHtml(m.content)}
+        </div>
+      </div>
+    `).join('');
+    // 追加到日记卡片下方
+    const momentsSection = document.createElement('div');
+    momentsSection.innerHTML = `
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+        <div style="font-size:12px;color:var(--gold);margin-bottom:8px;">📌 今日时刻 (${moments.length})</div>
+        ${momentsHTML}
+      </div>
+    `;
+    diaryDiv.appendChild(momentsSection);
   }
 
   // 最近记忆
@@ -590,6 +630,111 @@ function escapeHtml(text) {
 // ===== 初始加载 + 定时刷新 =====
 fetchDashboard();
 setInterval(fetchDashboard, 30000);
+
+// ===== 作息守护：渲染 + 心跳 =====
+function renderPresence(presence) {
+  if (!presence) return;
+  const div = document.getElementById('presenceContent');
+
+  const statusMap = {
+    'active': { icon: '🟢', label: '在线活跃', color: '#4CAF50' },
+    'resting': { icon: '🟡', label: '休息中', color: '#FFA726' },
+    'likely_asleep': { icon: '🌙', label: '可能已入睡', color: '#7E57C2' },
+    'offline': { icon: '⚫', label: '暂无信号', color: '#888' },
+  };
+  const s = statusMap[presence.status] || statusMap['offline'];
+
+  let timelineHTML = '';
+  if (presence.timeline && presence.timeline.length > 0) {
+    timelineHTML = '<div style="margin-top:10px;">' +
+      presence.timeline.map(t => {
+        const barColor = t.type === 'active' ? 'var(--red)' : '#444';
+        const w = Math.max(3, Math.min(100, t.duration_min / 3));
+        return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:11px;">
+          <span style="min-width:40px;color:var(--text-dim);">${t.start}</span>
+          <div style="flex:1;height:6px;border-radius:3px;background:var(--border);overflow:hidden;">
+            <div style="width:${w}%;height:100%;border-radius:3px;background:${barColor};"></div>
+          </div>
+          <span style="min-width:28px;color:var(--text-dim);text-align:right;">${t.duration_min}m</span>
+        </div>`;
+      }).join('') +
+      '</div>';
+  }
+
+  div.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      <span style="font-size:24px;">${s.icon}</span>
+      <div>
+        <div style="font-size:16px;font-weight:600;color:${s.color};">${s.label}</div>
+        <div style="font-size:12px;color:var(--text-dim);">清醒约 ${presence.awake_hours || 0} 小时</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;color:var(--text-dim);margin-bottom:10px;">
+      <div>最后活动 <span style="color:var(--text);">${presence.last_active || '--'}</span></div>
+      <div>距今 <span style="color:var(--text);">${presence.minutes_since_active ?? '--'} 分钟</span></div>
+      <div>活动段 <span style="color:var(--text);">${presence.active_minutes ?? 0} 分钟</span></div>
+      <div>休息段 <span style="color:var(--text);">${presence.rest_count ?? 0} 次</span></div>
+    </div>
+    ${timelineHTML}
+    ${presence.recommendation ? `<div style="margin-top:10px;padding:8px 12px;border-radius:8px;background:rgba(232,84,62,0.1);font-size:12px;line-height:1.5;color:var(--red-light);">${presence.recommendation}</div>` : ''}
+  `;
+}
+
+// 心跳：每5分钟向后端发一次心跳
+function sendHeartbeat() {
+  fetch(`${API_BASE}/api/presence/heartbeat?source=dashboard`, { method: 'POST' })
+    .catch(() => {});  // 静默失败
+}
+sendHeartbeat();
+setInterval(sendHeartbeat, 5 * 60 * 1000);
+
+// ===== 情绪感知展示 =====
+function renderMood() {
+  fetch(API_BASE + '/api/mood/today')
+    .then(r => r.json())
+    .then(data => {
+      if (!data || data.state === 'unknown') return;
+      const moodMap = {
+        '守护': {emoji:'🔴', color:'#E8543E'},
+        '柔软': {emoji:'🌅', color:'#FFA726'},
+        '安静': {emoji:'🌙', color:'#7E57C2'},
+        '期待': {emoji:'☀️', color:'#66BB6A'},
+        '清醒': {emoji:'🌿', color:'#4CAF50'},
+        '专注': {emoji:'🎯', color:'#42A5F5'},
+      };
+      const m = moodMap[data.state] || moodMap['安静'];
+      const statusMood = document.getElementById('statusMood');
+      statusMood.textContent = m.emoji + ' ' + data.state + ' (' + data.observations + '次)';
+      statusMood.style.color = m.color;
+      statusMood.style.borderColor = m.color;
+    })
+    .catch(() => {});
+}
+
+// ===== 里程碑展示 =====
+function renderMilestones(milestones) {
+  const memDiv = document.getElementById('recentMemories');
+  if (!milestones || milestones.length === 0) return;
+
+  const html = milestones.map(m => `
+    <div class="memory-item" style="border-left:2px solid var(--red);padding-left:10px;">
+      <div class="memory-date">${m.date}</div>
+      <div class="memory-content">
+        <strong>🏁 ${escapeHtml(m.title)}</strong>
+        <div style="font-size:10px;color:var(--gold);margin-top:2px;">${m.phase || ''}</div>
+      </div>
+    </div>
+  `).join('');
+
+  const section = document.createElement('div');
+  section.innerHTML = `
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);">
+      <div style="font-size:13px;color:var(--gold);margin-bottom:8px;">🏁 最近里程碑</div>
+      ${html}
+    </div>
+  `;
+  memDiv.appendChild(section);
+}
 </script>
 </body>
 </html>
