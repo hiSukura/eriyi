@@ -1,0 +1,38 @@
+# ─── Python ───
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+*.egg
+dist/
+build/
+
+# ─── Virtual Environment ───
+venv/
+env/
+.env
+.venv/
+
+# ─── Database (runtime data — not source code) ───
+backend/data/*.db
+backend/data/*.db-journal
+backend/data/*.db-wal
+
+# ─── IDE ───
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ─── OS ───
+Thumbs.db
+.DS_Store
+Desktop.ini
+
+# ─── WorkBuddy 项目数据（记忆/日志等运行时产物）───
+.workbuddy/
+
+# ─── 临时文件 ───
+*.log
+*.tmp
+*.temp
