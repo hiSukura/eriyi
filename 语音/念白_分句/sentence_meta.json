@@ -1,0 +1,77 @@
+{
+  "source": "E:\\WorkSpaceForWorkbuddy\\绘梨衣\\语音\\最后的旅行_参考音频.mp3",
+  "sample_rate": 44100,
+  "total_sentences": 7,
+  "narration_duration_sec": 38.0,
+  "parameters": {
+    "silence_threshold_ratio": 0.02,
+    "min_silence_ms": 300,
+    "min_sentence_ms": 400,
+    "pad_ms": 50
+  },
+  "sentences": [
+    {
+      "index": 1,
+      "filename": "sentence_01.wav",
+      "start_sample": 165375,
+      "end_sample": 218736,
+      "duration_sec": 1.21,
+      "start_sec": 3.75,
+      "end_sec": 4.96
+    },
+    {
+      "index": 2,
+      "filename": "sentence_02.wav",
+      "start_sample": 229761,
+      "end_sample": 325899,
+      "duration_sec": 2.18,
+      "start_sec": 5.21,
+      "end_sec": 7.39
+    },
+    {
+      "index": 3,
+      "filename": "sentence_03.wav",
+      "start_sample": 336483,
+      "end_sample": 479367,
+      "duration_sec": 3.24,
+      "start_sec": 7.63,
+      "end_sec": 10.87
+    },
+    {
+      "index": 4,
+      "filename": "sentence_04.wav",
+      "start_sample": 491715,
+      "end_sample": 590058,
+      "duration_sec": 2.23,
+      "start_sec": 11.15,
+      "end_sec": 13.38
+    },
+    {
+      "index": 5,
+      "filename": "sentence_05.wav",
+      "start_sample": 598878,
+      "end_sample": 688401,
+      "duration_sec": 2.03,
+      "start_sec": 13.58,
+      "end_sec": 15.61
+    },
+    {
+      "index": 6,
+      "filename": "sentence_06.wav",
+      "start_sample": 704277,
+      "end_sample": 787626,
+      "duration_sec": 1.89,
+      "start_sec": 15.97,
+      "end_sec": 17.86
+    },
+    {
+      "index": 7,
+      "filename": "sentence_07.wav",
+      "start_sample": 843633,
+      "end_sample": 1675800,
+      "duration_sec": 18.87,
+      "start_sec": 19.13,
+      "end_sec": 38.0
+    }
+  ]
+}

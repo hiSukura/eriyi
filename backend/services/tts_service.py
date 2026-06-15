@@ -1,12 +1,14 @@
 """
-TTS 引擎服务 · edge-tts 回退 + GPT-SoVITS 预留
-当前用 edge-tts (XiaoXiao) 提供即时TTS，训练完成后切换到克隆声音。
+TTS 引擎服务 · edge-tts + CPU训练的绘梨衣声音模型
 """
 import asyncio
-import subprocess
-import sys
 import hashlib
 from pathlib import Path
+
+import numpy as np
+import torch
+import torch.nn as nn
+import soundfile as sf
 
 from config import VOICE_CLONE_DIR
 
@@ -18,6 +20,13 @@ EDGE_VOICE = "zh-CN-XiaoxiaoNeural"
 EDGE_RATE = "-15%"
 EDGE_PITCH = "+2Hz"
 PROXY = "http://127.0.0.1:7897"
+
+# CPU训练的声音模型路径
+VOICE_MODEL_PATH = VOICE_CLONE_DIR / "GPT-SoVITS" / "output" / "eriyi_voice.pth"
+SR = 22050
+N_FFT = 512
+HOP = 256
+N_FREQ = N_FFT // 2 + 1
 
 
 async def generate_edge_tts(text: str, output_path: Path) -> bool:
@@ -109,3 +118,114 @@ def diary_to_plaintext(md_text: str) -> str:
         if line:
             lines.append(line)
     return "\n".join(lines)
+
+
+# ═══════ 绘梨衣声音模型 V2 ═══════
+class ResBlock(nn.Module):
+    def __init__(self, ch):
+        super().__init__()
+        self.conv = nn.Sequential(
+            nn.Conv1d(ch, ch, 3, padding=1), nn.BatchNorm1d(ch), nn.ReLU(),
+            nn.Conv1d(ch, ch, 3, padding=1), nn.BatchNorm1d(ch),
+        )
+    def forward(self, x):
+        return torch.relu(x + self.conv(x))
+
+
+class VoiceAE(nn.Module):
+    """VoiceAE V2 — 残差编码器/解码器，2.27M参数"""
+    def __init__(self):
+        super().__init__()
+        self.enc_in = nn.Conv1d(N_FREQ, 256, 7, padding=3)
+        self.enc_res1 = ResBlock(256)
+        self.enc_down1 = nn.Conv1d(256, 128, 4, stride=2, padding=1)
+        self.enc_res2 = ResBlock(128)
+        self.enc_down2 = nn.Conv1d(128, 64, 4, stride=2, padding=1)
+        self.enc_res3 = ResBlock(64)
+        self.latent = nn.Linear(64, 64)
+        self.dec_up1 = nn.ConvTranspose1d(64, 128, 4, stride=2, padding=1)
+        self.dec_res1 = ResBlock(128)
+        self.dec_up2 = nn.ConvTranspose1d(128, 256, 4, stride=2, padding=1)
+        self.dec_res2 = ResBlock(256)
+        self.dec_out = nn.Conv1d(256, N_FREQ, 7, padding=3)
+
+    def forward(self, x):
+        b, f, t_in = x.shape
+        pad = (4 - t_in % 4) % 4
+        if pad > 0:
+            x = torch.nn.functional.pad(x, (0, pad))
+        h = torch.relu(self.enc_in(x))
+        h = self.enc_res1(h)
+        h = torch.relu(self.enc_down1(h))
+        h = self.enc_res2(h)
+        h = torch.relu(self.enc_down2(h))
+        h = self.enc_res3(h)
+        z = h.mean(dim=2)
+        z = self.latent(z)
+        t = h.shape[2]
+        z = z.unsqueeze(-1).repeat(1, 1, t)
+        h = torch.relu(self.dec_up1(z))
+        h = self.dec_res1(h)
+        h = torch.relu(self.dec_up2(h))
+        h = self.dec_res2(h)
+        out = self.dec_out(h)
+        return out[:, :, :t_in]
+
+
+_voice_model = None
+
+
+def get_voice_model() -> VoiceAE | None:
+    """加载绘梨衣声音模型（单例）"""
+    global _voice_model
+    if _voice_model is None and VOICE_MODEL_PATH.exists():
+        _voice_model = VoiceAE()
+        _voice_model.load_state_dict(torch.load(VOICE_MODEL_PATH, map_location="cpu", weights_only=True))
+        _voice_model.eval()
+    return _voice_model
+
+
+def apply_eriyi_voice(input_wav_path: Path, output_wav_path: Path) -> bool:
+    """用绘梨衣的声学模型处理音频，赋予绘梨衣的音色特征"""
+    try:
+        model = get_voice_model()
+        if model is None:
+            return False
+
+        import librosa
+        y, _ = librosa.load(str(input_wav_path), sr=SR)
+        y_tensor = torch.from_numpy(y).float()
+
+        spec = torch.stft(y_tensor, n_fft=N_FFT, hop_length=HOP,
+                          window=torch.hann_window(N_FFT), return_complex=True)
+        mag = torch.log(torch.clamp(spec.abs() + 1e-6, min=1e-6))
+        original_phase = spec.angle()
+        mag_input = mag.unsqueeze(0)
+
+        with torch.no_grad():
+            gen_mag = model(mag_input).squeeze(0)
+
+        # 高质量混合：模型频谱80% + 原始频谱20% (保持清晰度)
+        gen_linear = torch.exp(gen_mag) - 1e-6
+        orig_linear = torch.exp(mag) - 1e-6
+        blended_mag = 0.8 * gen_linear + 0.2 * orig_linear
+
+        # 用原始相位（不是随机！）保证语音清晰
+        spec_complex = blended_mag * torch.exp(1j * original_phase)
+
+        # 迭代Griffin-Lim微调
+        window = torch.hann_window(N_FFT)
+        for _ in range(10):
+            wav_est = torch.istft(spec_complex, n_fft=N_FFT, hop_length=HOP,
+                                  window=window, length=len(y_tensor))
+            spec_est = torch.stft(wav_est, n_fft=N_FFT, hop_length=HOP,
+                                 window=window, return_complex=True)
+            spec_complex = blended_mag * torch.exp(1j * spec_est.angle())
+
+        wav = torch.istft(spec_complex, n_fft=N_FFT, hop_length=HOP,
+                          window=window, length=len(y_tensor))
+        sf.write(str(output_wav_path), wav.numpy(), SR)
+        return True
+    except Exception as e:
+        print(f"  [VoiceAE] 处理失败: {e}")
+        return False

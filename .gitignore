@@ -36,3 +36,16 @@ Desktop.ini
 *.log
 *.tmp
 *.temp
+
+# ─── 第三方子仓库 / 大型依赖 ───
+voice_clone/GPT-SoVITS/
+voice_clone/output/
+voice_clone/logs/
+
+# ─── Node.js ───
+node_modules/
+light-app/node_modules/
+visual/node_modules/
+
+# ─── 生成产物（3D 模型 / 预览图等运行时输出）───
+downloads/

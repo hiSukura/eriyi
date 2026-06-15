@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>绘梨衣 · 日记本</title>
+<style>
+:root {
+  --lantern: #e0443c;
+  --lantern-glow: #ff5040;
+  --lantern-soft: #ff6b5b;
+  --bg: #0d0505;
+  --bg-card: rgba(255,255,255,0.02);
+  --border: rgba(255,80,60,0.1);
+  --text: #e8c8c0;
+  --text-dim: rgba(200,150,140,0.5);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: linear-gradient(160deg, #0d0505 0%, #1a0808 40%, #0d0505 70%, #0a0404 100%);
+  min-height:100vh; font-family:"Microsoft YaHei","PingFang SC",sans-serif;
+  color:var(--text); padding:24px 16px 48px;
+  display:flex; justify-content:center;
+}
+
+.container { max-width:680px; width:100%; }
+
+.header { text-align:center; padding:32px 0 20px; }
+.header-title { font-size:24px; font-weight:300; color:var(--lantern-soft); letter-spacing:5px; margin-bottom:4px; }
+.header-sub { font-size:12px; color:var(--text-dim); letter-spacing:2px; }
+
+.topnav {
+  display:flex; align-items:center; justify-content:center; gap:4px;
+  margin-bottom:24px; flex-wrap:wrap;
+}
+.topnav a {
+  padding:5px 13px; border-radius:14px; border:1px solid var(--border);
+  font-size:11px; color:var(--text-dim); text-decoration:none;
+  transition:all 0.25s;
+}
+.topnav a:hover { border-color:rgba(255,80,60,0.3); color:var(--text); }
+.topnav a.active { background:rgba(255,80,60,0.12); border-color:rgba(255,80,60,0.3); color:var(--lantern-soft); }
+
+.diary-card {
+  display:flex; align-items:center; gap:12px;
+  background:var(--bg-card); border:1px solid var(--border);
+  border-radius:11px; padding:14px 16px; margin-bottom:8px;
+  cursor:pointer; transition:all 0.25s;
+}
+.diary-card:hover { border-color:rgba(255,80,60,0.2); background:rgba(255,80,60,0.04); }
+.diary-card.today { border-color:rgba(255,80,60,0.25); background:rgba(255,80,60,0.04); }
+
+.diary-date { font-size:13px; color:#dab8b0; min-width:90px; }
+.diary-mood { font-size:11px; color:var(--text-dim); flex:1; }
+.diary-arrow { color:var(--text-dim); font-size:14px; }
+.diary-badge {
+  font-size:10px; padding:2px 7px; border-radius:10px;
+  background:rgba(255,80,60,0.1); color:var(--lantern-soft); margin-left:6px;
+}
+
+.moments-section {
+  margin-top:16px; padding:12px 16px;
+  border:1px solid var(--border); border-radius:11px;
+  background:rgba(255,80,60,0.03);
+}
+.moment-item { display:flex; gap:8px; padding:4px 0; font-size:12px; }
+
+.reader-overlay { position:fixed; inset:0; background:rgba(5,0,0,0.92); z-index:100; display:flex; flex-direction:column; opacity:0; pointer-events:none; transition:opacity 0.3s; }
+.reader-overlay.open { opacity:1; pointer-events:all; }
+.reader-header { display:flex; align-items:center; justify-content:space-between; padding:12px 20px; border-bottom:1px solid var(--border); }
+.reader-close { padding:6px 14px; border-radius:14px; border:1px solid var(--border); background:transparent; color:var(--text-dim); cursor:pointer; font-size:12px; font-family:inherit; transition:all 0.25s; }
+.reader-close:hover { border-color:rgba(255,80,60,0.3); color:var(--text); }
+.reader-content { flex:1; overflow-y:auto; padding:24px 20px; max-width:680px; margin:0 auto; width:100%; line-height:1.9; font-size:14px; scrollbar-width:thin; scrollbar-color:var(--border) transparent; }
+.reader-content::-webkit-scrollbar { width:4px; }
+.reader-content::-webkit-scrollbar-track { background:transparent; }
+.reader-content::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+.reader-content h1 { font-size:20px; font-weight:300; color:var(--lantern-soft); margin-bottom:16px; }
+.reader-content h2 { font-size:15px; color:var(--lantern-soft); margin:24px 0 10px; font-weight:400; }
+.reader-content p { margin-bottom:8px; color:#c8968a; }
+.reader-content em { color:var(--text-dim); }
+.reader-content hr { border:none; border-top:1px solid var(--border); margin:16px 0; }
+.empty-state { text-align:center; padding:48px 20px; color:var(--text-dim); font-size:13px; }
+.footer { text-align:center; padding:32px 0 16px; color:var(--text-dim); font-size:11px; }
+.audio-btn { display:inline-flex; align-items:center; gap:6px; padding:6px 14px; border-radius:14px; border:1px solid var(--border); background:transparent; color:var(--text-dim); cursor:pointer; font-size:11px; font-family:inherit; transition:all 0.25s; margin-bottom:16px; }
+.audio-btn:hover { border-color:rgba(255,80,60,0.3); color:var(--lantern-soft); }
+.ripple { position: absolute; border-radius: 50%; background: rgba(255,80,60,0.12); transform: scale(0); animation: rippleOut 0.55s ease-out forwards; pointer-events: none; }
+@keyframes rippleOut { to { transform: scale(4); opacity: 0; } }
+</style>
+</head>
+<body>
+<div class="container">
+
+<div class="header">
+  <div class="header-title">📝 日记本</div>
+  <div class="header-sub">每天的绘梨衣日记 · v2.0 API驱动</div>
+</div>
+
+<div class="topnav">
+  <a href="绘梨衣_入口.html">🏠 入口</a>
+  <a href="绘梨衣_语音馆.html">🎙️ 语音馆</a>
+  <a href="绘梨衣_记忆长廊.html">🏮 记忆长廊</a>
+  <a href="绘梨衣_日记本.html" class="active">📝 日记本</a>
+</div>
+
+<div id="diaryList"></div>
+<div class="footer">日记本 · 每晚22:00自动生成 · v2.0 全天候时刻</div>
+
+</div>
+
+<div class="reader-overlay" id="reader">
+  <div class="reader-header">
+    <span id="readerDate" style="color:var(--lantern-soft);font-size:14px;"></span>
+    <div style="display:flex;gap:8px;">
+      <button class="audio-btn" id="audioBtn" onclick="playAudio()">🔊 听</button>
+      <button class="reader-close" onclick="closeReader()">✕ 关闭</button>
+    </div>
+  </div>
+  <div class="reader-content" id="readerContent"></div>
+</div>
+
+<audio id="audioPlayer" style="display:none"></audio>
+
+<script>
+var currentDiaryDate = '';
+var reader = document.getElementById('reader');
+var audioPlayer = document.getElementById('audioPlayer');
+
+// ============ v2.0 API驱动加载 ============
+async function loadDiaries() {
+  var today = new Date();
+  var todayStr = today.getFullYear() + '-' +
+    String(today.getMonth()+1).padStart(2,'0') + '-' +
+    String(today.getDate()).padStart(2,'0');
+  var listEl = document.getElementById('diaryList');
+
+  // 优先后端API
+  try {
+    var resp = await fetch('/api/diaries?limit=14');
+    if (resp.ok) {
+      var data = await resp.json();
+      var items = data.items || [];
+      if (items.length > 0) {
+        var html = items.map(function(d) {
+          var isToday = d.date === todayStr;
+          var label = d.date + (isToday ? ' · 今天' : '');
+          var mood = d.mood || '—';
+          var time = d.time_period || '';
+          return '<div class="diary-card'+(isToday?' today':'')+
+            '" onclick="openDiary(\''+d.date+'\')">'+
+            '<div class="diary-date">'+label+'</div>'+
+            '<div class="diary-mood">'+(mood+(time?' · '+time:''))+'</div>'+
+            (isToday?'<span class="diary-badge">最新</span>':'')+
+            '<div class="diary-arrow">→</div></div>';
+        }).join('');
+
+        // 加载今日时刻
+        try {
+          var mr = await fetch('/api/diaries/moments/today');
+          if (mr.ok) {
+            var md = await mr.json();
+            var moments = md.moments || [];
+            if (moments.length > 0) {
+              html += '<div class="moments-section">'+
+                '<div style="font-size:12px;color:var(--lantern-soft);margin-bottom:8px;">📌 今日时刻 ('+moments.length+')</div>'+
+                moments.map(function(m) {
+                  return '<div class="moment-item">'+
+                    '<span style="color:var(--text-dim);white-space:nowrap;">'+((m.timestamp||'').slice(11,16))+'</span>'+
+                    '<span style="color:var(--text);">'+esc(m.content)+'</span></div>';
+                }).join('')+'</div>';
+            }
+          }
+        } catch(e) {}
+
+        listEl.innerHTML = html;
+        return;
+      }
+    }
+  } catch(e) { /* fallback */ }
+
+  // 无后端 → 回退本地加载
+  loadLocal(todayStr, listEl);
+}
+
+// ============ 本地文件回退 ============
+function loadLocal(todayStr, listEl) {
+  var dates = [todayStr];
+  for (var i=1;i<=3;i++) {
+    var d = new Date(); d.setDate(d.getDate()-i);
+    dates.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'));
+  }
+  var html = dates.map(function(d) {
+    return '<div class="diary-card'+(d===todayStr?' today':'')+'" id="dentry-'+d+'" onclick="openDiary(\''+d+'\')">'+
+      '<div class="diary-date">'+d+(d===todayStr?' · 今天':'')+'</div>'+
+      '<div class="diary-mood" id="dmood-'+d+'">加载中...</div>'+
+      (d===todayStr?'<span class="diary-badge">最新</span>':'')+
+      '<div class="diary-arrow">→</div></div>';
+  }).join('');
+  listEl.innerHTML = html;
+
+  dates.forEach(function(d) {
+    fetch('绘梨衣日记/'+d+'.md').then(function(r) {
+      return r.ok ? r.text() : null;
+    }).then(function(t) {
+      var el = document.getElementById('dmood-'+d);
+      if (!t) { var ce = document.getElementById('dentry-'+d); if(ce) ce.style.display='none'; return; }
+      var fl = t.split('\n').find(function(l){return l.trim().indexOf('🔴')===0;}) || '';
+      var mm = fl.match(/心情：(.+?)\s*\|/);
+      var tm = fl.match(/时间：(.+?)\s*\|/);
+      if (el) el.textContent = (mm?mm[1]:'—')+(tm?' · '+tm[1]:'');
+    }).catch(function(){
+      var ce = document.getElementById('dentry-'+d); if(ce) ce.style.display='none';
+    });
+  });
+}
+
+// ============ 阅读器 ============
+function openDiary(dateStr) {
+  currentDiaryDate = dateStr;
+  // API优先
+  fetch('/api/diaries/'+dateStr).then(function(r) {
+    if (!r.ok) throw new Error('API fail');
+    return r.json();
+  }).then(function(d) {
+    showDiaryContent(d.content || '', dateStr);
+    if (d.mp3_path) { audioPlayer.src = '/audio/'+encodeURIComponent(d.mp3_path.split('/').pop()); document.getElementById('audioBtn').style.display='inline-flex'; }
+    else { audioPlayer.src = ''; document.getElementById('audioBtn').style.display='none'; }
+  }).catch(function() {
+    // 本地回退
+    fetch('绘梨衣日记/'+dateStr+'.md').then(function(r) { return r.text(); }).then(function(md) {
+      showDiaryContent(md, dateStr);
+      fetch('绘梨衣日记/'+dateStr+'.mp3',{method:'HEAD'}).then(function(r) {
+        if(r.ok){document.getElementById('audioBtn').style.display='inline-flex';audioPlayer.src='绘梨衣日记/'+dateStr+'.mp3';}
+        else document.getElementById('audioBtn').style.display='none';
+      });
+    }).catch(function() {
+      document.getElementById('readerContent').innerHTML='<div class="empty-state">日记加载失败</div>';
+      reader.classList.add('open');
+    });
+  });
+}
+
+function showDiaryContent(md, dateStr) {
+  document.getElementById('readerContent').innerHTML = mdToHtml(md);
+  document.getElementById('readerDate').textContent = dateStr;
+  reader.classList.add('open');
+}
+
+function closeReader() { reader.classList.remove('open'); audioPlayer.pause(); currentDiaryDate=''; }
+function playAudio() {
+  if (audioPlayer.paused) { audioPlayer.play(); document.getElementById('audioBtn').textContent='⏸ 暂停'; }
+  else { audioPlayer.pause(); document.getElementById('audioBtn').textContent='🔊 听'; }
+}
+audioPlayer.addEventListener('ended', function(){ document.getElementById('audioBtn').textContent='🔊 听'; });
+document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeReader(); });
+
+function mdToHtml(md) {
+  var lines=md.split('\n'), html='', inList=false;
+  for(var i=0;i<lines.length;i++) {
+    var l=lines[i];
+    if(l.trim()===''){html+='<br>';continue;}
+    if(l.trim()==='---'){html+='<hr>';continue;}
+    if(l.indexOf('# ')==0){html+='<h1>'+esc(l.slice(2))+'</h1>';continue;}
+    if(l.indexOf('## ')==0){html+='<h2>'+esc(l.slice(3))+'</h2>';continue;}
+    if(l.indexOf('### ')==0){html+='<h3 style="color:var(--lantern-soft);font-size:14px;margin:16px 0 8px">'+esc(l.slice(4))+'</h3>';continue;}
+    if(l.indexOf('- ')==0){if(!inList){html+='<ul>';inList=true;} html+='<li>'+esc(l.slice(2))+'</li>';continue;}
+    else if(inList){html+='</ul>';inList=false;}
+    l=l.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');
+    html+='<p>'+l+'</p>';
+  }
+  if(inList) html+='</ul>';
+  return html;
+}
+function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+loadDiaries();
+
+document.addEventListener('click', function(e){
+  var el=e.target.closest('.diary-card,.topnav a,.audio-btn,.reader-close');
+  if(!el)return;
+  var rect=el.getBoundingClientRect();
+  var size=Math.max(rect.width,rect.height);
+  var ripple=document.createElement('span');
+  ripple.className='ripple';
+  ripple.style.width=ripple.style.height=size+'px';
+  ripple.style.left=(e.clientX-rect.left-size/2)+'px';
+  ripple.style.top=(e.clientY-rect.top-size/2)+'px';
+  el.appendChild(ripple);
+  ripple.addEventListener('animationend',function(){ripple.remove();});
+});
+</script>
+</body>
+</html>

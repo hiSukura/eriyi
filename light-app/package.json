@@ -1,0 +1,21 @@
+{
+  "name": "light-app",
+  "version": "1.0.0",
+  "description": "绘梨衣 · 光点 — 3D灯笼红呼吸球体",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "绘梨衣",
+    "light",
+    "threejs"
+  ],
+  "author": "Sukura & 绘梨衣",
+  "license": "ISC",
+  "dependencies": {
+    "@pixiv/three-vrm": "^3.5.3",
+    "three": "^0.184.0"
+  }
+}

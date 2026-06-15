@@ -100,6 +100,7 @@ from routes.notification import router as notification_router
 from routes.milestone import router as milestone_router
 from routes.mood import router as mood_router
 from routes.tts import router as tts_router
+from routes.evolution import router as evolution_router
 
 app.include_router(diary_router)
 app.include_router(memory_router)
@@ -111,6 +112,7 @@ app.include_router(notification_router)
 app.include_router(milestone_router)
 app.include_router(mood_router)
 app.include_router(tts_router)
+app.include_router(evolution_router)
 
 
 # ─── 健康检查 ───

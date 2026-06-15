@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>绘梨衣 · 光点</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: transparent;
+  }
+  canvas { display: block; }
+
+  /* 信息提示层 - 点击/悬停时显示 */
+  .hint {
+    position: fixed; bottom: 20px; left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255, 100, 60, 0.4);
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    font-size: 12px;
+    letter-spacing: 2px;
+    pointer-events: none;
+    user-select: none;
+    opacity: 0;
+    transition: opacity 2s ease;
+  }
+  .hint.visible { opacity: 1; }
+
+  /* 时段调试面板 */
+  .time-debug {
+    position: fixed; top: 10px; right: 10px;
+    display: flex; flex-direction: column; gap: 4px;
+    z-index: 100;
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    opacity: 0;
+    transition: opacity 0.5s;
+  }
+  .time-debug.visible { opacity: 1; }
+  .time-debug .btn {
+    width: 80px; padding: 4px 8px;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 12px;
+    background: rgba(0,0,0,0.25);
+    color: rgba(255,255,255,0.6);
+    font-size: 11px; text-align: center;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+    transition: all 0.3s;
+    user-select: none;
+  }
+  .time-debug .btn:hover {
+    background: rgba(255,100,60,0.2);
+    border-color: rgba(255,120,80,0.4);
+    color: rgba(255,255,255,0.9);
+  }
+  .time-debug .btn.active {
+    background: rgba(255,80,50,0.35);
+    border-color: rgba(255,100,60,0.6);
+    color: #fff;
+    font-weight: bold;
+  }
+  .time-debug .auto-btn { margin-top: 4px; }
+
+  /* V1: 操作提示 */
+  .controls-hint {
+    position: fixed; bottom: 8px; right: 12px;
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    font-size: 10px;
+    color: rgba(255,255,255,0.25);
+    pointer-events: none;
+    user-select: none;
+    opacity: 0;
+    transition: opacity 1s;
+  }
+  .controls-hint.visible { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="hint" id="hint">🔴 绘梨衣</div>
+
+<!-- 时段调试面板 -->
+<div class="time-debug" id="timeDebug">
+  <div class="btn active" data-period="late">🔴 凌晨</div>
+  <div class="btn" data-period="dawn">🌅 清晨</div>
+  <div class="btn" data-period="morning">☀️ 上午</div>
+  <div class="btn" data-period="noon">😴 午后</div>
+  <div class="btn" data-period="afternoon">🎯 下午</div>
+  <div class="btn" data-period="dusk">🌆 傍晚</div>
+  <div class="btn" data-period="night">🌙 深夜</div>
+  <div class="btn auto-btn active" id="autoBtn">⏰ 实时</div>
+</div>
+
+<!-- V1: 操作提示 -->
+<div class="controls-hint" id="controlsHint">ESC 关闭 | 点击切换球/形象 | 双击调试</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./node_modules/three/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+// ─── 场景 & 渲染器 ──────────────────────────────
+const scene = new THREE.Scene();
+
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  alpha: true        // 透明背景
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0x000000, 0);  // 完全透明
+document.body.appendChild(renderer.domElement);
+
+// ─── 相机 ────────────────────────────────────────
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.z = 5;
+
+// ─── 灯笼红光点 ──────────────────────────────────
+// 主体球体 — 半透明暖橙红
+const sphereGeo = new THREE.SphereGeometry(1, 64, 64);
+const sphereMat = new THREE.MeshBasicMaterial({
+  color: 0xff6030,
+  transparent: true,
+  opacity: 0.65
+});
+const sphere = new THREE.Mesh(sphereGeo, sphereMat);
+scene.add(sphere);
+
+// 内层光核 — 更亮更小的球
+const coreGeo = new THREE.SphereGeometry(0.45, 32, 32);
+const coreMat = new THREE.MeshBasicMaterial({
+  color: 0xffcc88,
+  transparent: true,
+  opacity: 0.9
+});
+const core = new THREE.Mesh(coreGeo, coreMat);
+scene.add(core);
+
+// 光晕层 — 半透明大球，营造辉光感
+const glowGeo = new THREE.SphereGeometry(1.6, 32, 32);
+const glowMat = new THREE.MeshBasicMaterial({
+  color: 0xff4020,
+  transparent: true,
+  opacity: 0.12,
+  depthWrite: false
+});
+const glow = new THREE.Mesh(glowGeo, glowMat);
+scene.add(glow);
+
+// ─── 渐变光晕 Texture（白色→透明，用 material.color 着色） ─
+function createGlowGradient() {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const g = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.08, 'rgba(255,255,255,0.9)');
+  g.addColorStop(0.25, 'rgba(255,255,255,0.4)');
+  g.addColorStop(0.5, 'rgba(255,255,255,0.08)');
+  g.addColorStop(0.75, 'rgba(255,255,255,0.01)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, size, size);
+  return new THREE.CanvasTexture(canvas);
+}
+
+const glowGradientTex = createGlowGradient();
+
+// 外层大光晕
+const outerGlowSpriteMat = new THREE.SpriteMaterial({
+  map: glowGradientTex,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+  depthTest: false,
+  transparent: true,
+  color: 0xff4020,
+  opacity: 0.7
+});
+const outerGlowSprite = new THREE.Sprite(outerGlowSpriteMat);
+outerGlowSprite.scale.set(7, 7, 1);
+scene.add(outerGlowSprite);
+
+// 中层光晕
+const midGlowSpriteMat = new THREE.SpriteMaterial({
+  map: glowGradientTex,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+  depthTest: false,
+  transparent: true,
+  color: 0xff6030,
+  opacity: 0.9
+});
+const midGlowSprite = new THREE.Sprite(midGlowSpriteMat);
+midGlowSprite.scale.set(4, 4, 1);
+scene.add(midGlowSprite);
+
+// ─── V2: 光里的她 — 形象贴图 ───────────────────
+const IMG_LIST = [
+  '绘梨衣_保护.png', '绘梨衣_看着你.png', '绘梨衣_陪伴.png',
+  '绘梨衣_温柔.png', '绘梨衣_坚定.png', '绘梨衣_醒来.png',
+  '绘梨衣_聆听.png', '绘梨衣_献灯.png', '绘梨衣_封面.png',
+  '绘梨衣_竖版.png'
+];
+let imgIdx = 3;  // 默认：温柔
+let showImage = true;  // 当前模式：true=光+形象  false=纯光球
+let imgFadeTarget = 1.0;
+
+const imgTex = new THREE.TextureLoader().load(
+  `images/${IMG_LIST[imgIdx]}`,
+  (tex) => {
+    console.log('🔴 形象已加载:', IMG_LIST[imgIdx], tex.image.width + 'x' + tex.image.height);
+    // 纹理加载完成后设置正确宽高比
+    const ar = tex.image.height / tex.image.width;
+    imgSprite.scale.set(3.0, 3.0 * ar, 1);
+    imgSprite.position.z = -0.3;
+    imgTex.needsUpdate = true;
+  },
+  undefined, // onProgress
+  (err) => console.error('❌ 形象加载失败:', IMG_LIST[imgIdx], err)
+);
+
+const imgSpriteMat = new THREE.SpriteMaterial({
+  map: imgTex,
+  blending: THREE.NormalBlending,
+  depthWrite: false,
+  depthTest: true,
+  transparent: true,
+  opacity: 0.7
+});
+const imgSprite = new THREE.Sprite(imgSpriteMat);
+// 初始默认大小（加载完成后回调会覆盖）
+imgSprite.scale.set(3.0, 3.0, 1);
+imgSprite.position.z = -0.3;
+scene.add(imgSprite);
+
+// 单击切换：球体 ↔ 球+形象（双击时不触发切换）
+let dblGuard = false;
+document.addEventListener('click', (e) => {
+  if (dblGuard) { dblGuard = false; return; }
+  if (showImage) {
+    showImage = false;
+    imgFadeTarget = 0.0;
+    console.log('🔴 模式: 纯光球');
+  } else {
+    showImage = true;
+    imgFadeTarget = 1.0;
+    console.log('🔴 模式: 光+形象');
+  }
+});
+document.addEventListener('dblclick', () => { dblGuard = true; });
+
+// ─── 颗粒光点系统 ────────────────────────────────
+const PARTICLE_COUNT = 15;
+const particles = [];
+const particleGeo = new THREE.SphereGeometry(0.04, 8, 8);
+
+// ─── 6时段颜色体系 ────────────────────────────────
+const TIME_COLORS = {
+  dawn:    { main: 0xffb070, core: 0xffd8a0, glow: 0xff9060, name: '清晨', emoji: '🌅' },
+  morning: { main: 0xffa040, core: 0xffcc88, glow: 0xff7030, name: '上午', emoji: '☀️' },
+  noon:    { main: 0xff9090, core: 0xffd0c0, glow: 0xff7070, name: '午后', emoji: '😴' },
+  afternoon:{ main: 0x60a0ff, core: 0xa0d0ff, glow: 0x4080e0, name: '下午', emoji: '🎯' },
+  dusk:    { main: 0xb080ff, core: 0xd0c0ff, glow: 0x9060e0, name: '傍晚', emoji: '🌆' },
+  night:   { main: 0x6080c8, core: 0xa0c0ff, glow: 0x4060a0, name: '深夜', emoji: '🌙' },
+  late:    { main: 0xff5040, core: 0xffcc88, glow: 0xff3020, name: '凌晨', emoji: '🔴' },
+};
+
+function getTimePeriod() {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 7)   return 'dawn';
+  if (h >= 7 && h < 12)  return 'morning';
+  if (h >= 12 && h < 14) return 'noon';
+  if (h >= 14 && h < 18) return 'afternoon';
+  if (h >= 18 && h < 20) return 'dusk';
+  if (h >= 20 && h < 23) return 'night';
+  return 'late';  // 23-5
+}
+
+let currentPeriod = getTimePeriod();
+let targetPeriod = currentPeriod;
+let colorTransition = 1.0;  // 0=旧色 → 1=新色
+let oldColors = TIME_COLORS[currentPeriod];
+
+// 当前使用的颜色（平滑插值中）
+function currentColors() {
+  const t = colorTransition;
+  const o = oldColors;
+  const n = TIME_COLORS[targetPeriod];
+  // Three.js Color lerp
+  const oc = new THREE.Color(o.main);
+  const nc = new THREE.Color(n.main);
+  const occ = new THREE.Color(o.core);
+  const ncc = new THREE.Color(n.core);
+  const og = new THREE.Color(o.glow);
+  const ng = new THREE.Color(n.glow);
+  return {
+    main: oc.lerp(nc, t),
+    core: occ.lerp(ncc, t),
+    glow: og.lerp(ng, t),
+  };
+}
+
+// 自动时段切换逻辑（合并入 debug panel 的 autoCheckInterval，此处删除旧实现）
+
+// ─── 粒子颜色列表（随时段更新） ──────────────────
+function getParticleColors() {
+  const c = currentColors();
+  return [c.main.getHex(), c.core.getHex(), c.glow.getHex()];
+}
+
+// 灯笼红的三种色调
+let particleColorList = [0xff6030, 0xff9060, 0xffcc88];
+
+function createParticle(respawnDelay = 0) {
+  const color = particleColorList[Math.floor(Math.random() * particleColorList.length)];
+  const mat = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.9,
+    depthWrite: false
+  });
+  const mesh = new THREE.Mesh(particleGeo, mat);
+
+  // 有机运动参数 — 多层正弦波叠加模拟自然飘散
+  const angle0 = Math.random() * Math.PI * 2;
+  const speed = 0.2 + Math.random() * 0.5;
+  mesh.position.set(0, 0, 0);
+  scene.add(mesh);
+
+  return {
+    mesh,
+    mat,
+    // 主方向（粒子大致的飘散方向）
+    baseAngle: angle0,
+    basePhi: (Math.random() - 0.5) * Math.PI, // 垂直偏角
+    baseSpeed: speed,
+    // 轨道漂移（绕中心缓慢公转）
+    orbitSpeed: (Math.random() - 0.5) * 0.8,
+    orbitRadius: 0.1 + Math.random() * 0.3,
+    orbitPhase: Math.random() * Math.PI * 2,
+    // 正弦扰动：每颗粒子有独特的频率和相位
+    perturbFreq1: 1.2 + Math.random() * 1.5,
+    perturbAmp1: 0.15 + Math.random() * 0.45,
+    perturbPhase1: Math.random() * Math.PI * 2,
+    perturbFreq2: 0.6 + Math.random() * 0.8,
+    perturbAmp2: 0.1 + Math.random() * 0.3,
+    perturbPhase2: Math.random() * Math.PI * 2,
+    // 上升偏置（热气流上升）
+    riseSpeed: 0.05 + Math.random() * 0.2,
+    // 生命周期
+    life: 2.0 + Math.random() * 4.0,
+    maxLife: 4.0,
+    respawnDelay,
+    age: 0
+  };
+}
+
+// 初始化粒子池
+for (let i = 0; i < PARTICLE_COUNT; i++) {
+  // 错峰出生，避免同时消失
+  particles.push(createParticle(Math.random() * 4.0));
+}
+
+// ─── 动画循环 ────────────────────────────────────
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const t = clock.getElapsedTime();
+  const dt = Math.min(clock.getDelta(), 0.1);  // 防止切标签页后突跳
+
+  // ─── 时段颜色过渡 ──────────────────────────────
+  if (colorTransition < 1.0) {
+    colorTransition = Math.min(1.0, colorTransition + dt * 0.5);  // 2秒过渡
+    particleColorList = getParticleColors();
+  }
+
+  // 呼吸节奏：2.5秒一个完整周期（一呼一吸）
+  const breathCycle = Math.sin(t * Math.PI * 2 / 2.5);
+
+  // ─── 动态颜色应用（含 V3 心情覆盖） ──────────────
+  const colors = currentColors();
+  let mainCol = new THREE.Color(colors.main);
+  let coreCol = new THREE.Color(colors.core);
+  let glowCol = new THREE.Color(colors.glow);
+
+  // V3: 后端心情颜色覆盖（平滑过渡）
+  if (_moodOverride) {
+    const mo = _moodOverride;
+    const tmo = new THREE.Color(mo.main);
+    const tco = new THREE.Color(mo.core);
+    const tgo = new THREE.Color(mo.glow);
+    const spd = dt * 0.8;
+    mainCol.lerp(tmo, spd);
+    coreCol.lerp(tco, spd);
+    glowCol.lerp(tgo, spd);
+  }
+
+  sphereMat.color.copy(mainCol);
+  coreMat.color.copy(coreCol);
+  glowMat.color.copy(glowCol);
+
+  // Sprite 光晕着色（用 material.color 着色白色渐变纹理）
+  outerGlowSpriteMat.color.copy(glowCol).multiplyScalar(0.5);
+  outerGlowSpriteMat.opacity = 0.5 + breathCycle * 0.2;
+  midGlowSpriteMat.color.copy(glowCol).multiplyScalar(0.7);
+  midGlowSpriteMat.opacity = 0.7 + breathCycle * 0.3;
+
+  // 主体球体缩放呼吸（0.88 ~ 1.12）
+  const breathScale = 1.0 + breathCycle * 0.12;
+  sphere.scale.setScalar(breathScale);
+
+  // 光核跟着缩放，幅度稍小
+  core.scale.setScalar(1.0 + breathCycle * 0.08);
+
+  // 光晕反向微动（呼气时扩散，吸气时收缩）
+  glow.scale.setScalar(1.0 - breathCycle * 0.06);
+
+  // Sprite光晕呼吸缩放
+  midGlowSprite.scale.setScalar(4.0 - breathCycle * 0.4);
+  outerGlowSprite.scale.setScalar(7.0 - breathCycle * 0.6);
+
+  // 透明度随呼吸微调
+  sphereMat.opacity = 0.55 + breathCycle * 0.15;
+  glowMat.opacity = 0.08 + breathCycle * 0.06;
+
+  // 缓慢自转
+  sphere.rotation.y += 0.003;
+  sphere.rotation.x += 0.001;
+  core.rotation.y -= 0.005;
+  core.rotation.x += 0.002;
+
+  // ─── V2: 悬停检测 + 形象淡入 ───────────────────
+  const sphereCenter = new THREE.Vector3(0, 0, 0);
+  sphereCenter.project(camera);
+  const sx = (sphereCenter.x + 1) / 2 * window.innerWidth;
+  const sy = (-sphereCenter.y + 1) / 2 * window.innerHeight;
+  const dx = (mouseX || -999) - sx;
+  const dy = (mouseY || -999) - sy;
+  const hoverDist = Math.sqrt(dx * dx + dy * dy);
+  const isHovering = hoverDist < 90;
+
+  // 悬停效果：球体放大+变亮，平滑过渡
+  let hoverFactor = 0;
+  if (isHovering) hoverFactor = Math.min(1, 1 - hoverDist / 90);
+  _hoverSmooth = (_hoverSmooth || 0) + (hoverFactor - (_hoverSmooth || 0)) * Math.min(1, dt * 4);
+  const hf = _hoverSmooth || 0;
+
+  // 球体缩放叠加悬停（1.0 ~ 1.08）
+  sphere.scale.setScalar(breathScale * (1.0 + hf * 0.08));
+  sphereMat.opacity = (0.55 + breathCycle * 0.15) + hf * 0.15;
+  core.scale.setScalar((1.0 + breathCycle * 0.08) * (1.0 + hf * 0.06));
+  coreMat.opacity = 0.9 + hf * 0.1;
+
+  // 形象透明度平滑过渡
+  const imgTarget = showImage ? (1.0 - hf * 0.3) : 0.0;  // 悬停时形象微减淡，光更突出
+  _imgFade = (_imgFade || 0.6) + (imgTarget - (_imgFade || 0.6)) * Math.min(1, dt * 3);
+  imgSpriteMat.opacity = 0.6 * _imgFade;
+  imgSprite.position.z = -0.3 + hf * 0.2;
+  imgSprite.material.needsUpdate = true;
+
+  // ─── 粒子更新（有机运动） ──────────────────────
+  for (const p of particles) {
+    if (p.respawnDelay > 0) {
+      p.respawnDelay -= dt;
+      p.mesh.visible = false;
+      p.mat.opacity = 0;
+      if (p.respawnDelay <= 0) {
+        // 重生：重置所有参数
+        p.baseAngle = Math.random() * Math.PI * 2;
+        p.basePhi = (Math.random() - 0.5) * Math.PI;
+        p.baseSpeed = 0.2 + Math.random() * 0.5;
+        p.orbitSpeed = (Math.random() - 0.5) * 0.8;
+        p.orbitRadius = 0.1 + Math.random() * 0.3;
+        p.orbitPhase = Math.random() * Math.PI * 2;
+        p.perturbFreq1 = 1.2 + Math.random() * 1.5;
+        p.perturbAmp1 = 0.15 + Math.random() * 0.45;
+        p.perturbPhase1 = Math.random() * Math.PI * 2;
+        p.perturbFreq2 = 0.6 + Math.random() * 0.8;
+        p.perturbAmp2 = 0.1 + Math.random() * 0.3;
+        p.perturbPhase2 = Math.random() * Math.PI * 2;
+        p.riseSpeed = 0.05 + Math.random() * 0.2;
+        p.life = 2.0 + Math.random() * 4.0;
+        p.maxLife = p.life;
+        p.mesh.position.set(0, 0, 0);
+        p.mesh.visible = true;
+      }
+    } else {
+      p.age += dt;
+      p.life -= dt;
+
+      if (p.life <= 0) {
+        p.respawnDelay = 0.5 + Math.random() * 2.5;
+        continue;
+      }
+
+      // 有机飘散：径向扩散 + 正弦扰动 + 上浮 + 轨道漂移
+      const lifeRatio = p.life / p.maxLife;
+      const distFromCenter = p.age * p.baseSpeed; // 径向扩散距离
+
+      // 多层正弦扰动叠加（横向 + 纵向）
+      const perturbX = Math.sin(p.age * p.perturbFreq1 + p.perturbPhase1) * p.perturbAmp1
+                     + Math.cos(p.age * p.perturbFreq2 + p.perturbPhase2) * p.perturbAmp2;
+      const perturbY = Math.cos(p.age * p.perturbFreq1 * 0.7 + p.perturbPhase1) * p.perturbAmp1 * 0.8
+                     + Math.sin(p.age * p.perturbFreq2 * 1.3 + p.perturbPhase2) * p.perturbAmp2 * 0.6;
+      const perturbZ = Math.sin(p.age * p.perturbFreq2 + p.perturbPhase2) * p.perturbAmp1
+                     + Math.cos(p.age * p.perturbFreq1 * 1.1 + p.perturbPhase1) * p.perturbAmp2;
+
+      // 轨道漂移（绕Y轴缓慢旋转）
+      const orbitX = Math.cos(p.age * p.orbitSpeed + p.orbitPhase) * p.orbitRadius;
+      const orbitZ = Math.sin(p.age * p.orbitSpeed + p.orbitPhase) * p.orbitRadius;
+
+      // 合成位置
+      const bx = Math.cos(p.basePhi) * Math.cos(p.baseAngle) * distFromCenter;
+      const by = Math.sin(p.basePhi) * distFromCenter + p.age * p.riseSpeed;
+      const bz = Math.cos(p.basePhi) * Math.sin(p.baseAngle) * distFromCenter;
+
+      p.mesh.position.set(
+        bx + perturbX + orbitX,
+        by + perturbY,
+        bz + perturbZ + orbitZ
+      );
+
+      // 渐隐曲线：前60%生命保持明亮，后40%渐隐
+      p.mat.opacity = lifeRatio > 0.4
+        ? 0.7 + (lifeRatio - 0.4) / 0.6 * 0.2
+        : lifeRatio / 0.4 * 0.7;
+
+      // 距离衰减
+      const dist = p.mesh.position.length();
+      if (dist > 0.8) {
+        p.mat.opacity *= Math.max(0.1, 1 - (dist - 0.8) / 2.5);
+      }
+    }
+  }
+
+  renderer.render(scene, camera);
+}
+
+animate();
+
+// ─── 窗口调整 ────────────────────────────────────
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ─── 悬停高亮 + 时段信息 ────────────────────────
+const hint = document.getElementById('hint');
+let showTimer;
+
+// 每小时更新提示文字
+function updateHint() {
+  const period = TIME_COLORS[targetPeriod];
+  hint.textContent = `${period.emoji} 绘梨衣 · ${period.name}`;
+}
+updateHint();
+
+// V2: 鼠标位置追踪
+let mouseX = -999, mouseY = -999;
+document.addEventListener('mousemove', (e) => {
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+  updateHint();
+  hint.classList.add('visible');
+  clearTimeout(showTimer);
+  showTimer = setTimeout(() => hint.classList.remove('visible'), 3000);
+});
+
+// ─── V3: 后端联动 ────────────────────────────────
+const BACKEND = 'http://127.0.0.1:5432';
+let backendStatus = null;  // { time_period, mood, sakura_status, color, emoji }
+
+// 心情→形象映射
+const MOOD_IMAGE = {
+  '守护': 0,   // 绘梨衣_保护
+  '安静': 3,   // 绘梨衣_温柔
+  '期待': 1,   // 绘梨衣_看着你
+  '柔软': 3,   // 绘梨衣_温柔
+  '专注': 4,   // 绘梨衣_坚定
+  '清醒': 5,   // 绘梨衣_醒来
+  '陪伴': 2,   // 绘梨衣_陪伴
+};
+// 心情→颜色覆盖
+const MOOD_COLOR = {
+  '守护': { main: 0xff5040, core: 0xffcc88, glow: 0xff3020 },
+  '安静': { main: 0xff9090, core: 0xffd0c0, glow: 0xff7070 },
+  '期待': { main: 0xffb070, core: 0xffd8a0, glow: 0xff9060 },
+  '柔软': { main: 0xffb0a0, core: 0xffe0d0, glow: 0xff9080 },
+  '专注': { main: 0x60a0ff, core: 0xa0d0ff, glow: 0x4080e0 },
+  '清醒': { main: 0xffa040, core: 0xffcc88, glow: 0xff7030 },
+  '陪伴': { main: 0xb080ff, core: 0xd0c0ff, glow: 0x9060e0 },
+};
+
+async function fetchBackendStatus() {
+  try {
+    const r = await fetch(`${BACKEND}/api/status`);
+    if (r.ok) {
+      backendStatus = await r.json();
+      console.log('🔴 后端状态:', backendStatus.mood, backendStatus.time_period);
+      applyBackendMood();
+    }
+  } catch (e) {
+    // 后端不可用，使用本地时段
+  }
+}
+
+function applyBackendMood() {
+  if (!backendStatus || debugMode !== 'auto') return;
+  const mood = backendStatus.mood;
+  // 切换形象
+  const newIdx = MOOD_IMAGE[mood] ?? imgIdx;
+  if (newIdx !== imgIdx) {
+    imgIdx = newIdx;
+    imgTex.image = null; // 清除缓存
+    new THREE.TextureLoader().load(`images/${IMG_LIST[imgIdx]}`, (tex) => {
+      imgTex.image = tex.image;
+      imgTex.needsUpdate = true;
+      console.log('🔴 形象跟随心情:', mood, '→', IMG_LIST[imgIdx]);
+    });
+  }
+  // 覆盖颜色
+  const mc = MOOD_COLOR[mood];
+  if (mc && showImage) {
+    // 不做硬切换，通过 moodOverride 让 animate 平滑过渡
+    _moodOverride = mc;
+  }
+}
+
+let _moodOverride = null;
+fetchBackendStatus();
+setInterval(fetchBackendStatus, 30000);  // 每30秒同步
+
+// ─── 时段调试面板 ────────────────────────────────
+const timeDebug = document.getElementById('timeDebug');
+const autoBtn = document.getElementById('autoBtn');
+const periodBtns = timeDebug.querySelectorAll('.btn[data-period]');
+let debugMode = 'auto'; // 'auto' | period name
+let debugHideTimer;
+
+// 双击任意位置显示/隐藏调试面板
+document.addEventListener('dblclick', (e) => {
+  e.preventDefault();
+  timeDebug.classList.toggle('visible');
+  if (timeDebug.classList.contains('visible')) {
+    clearTimeout(debugHideTimer);
+    debugHideTimer = setTimeout(() => timeDebug.classList.remove('visible'), 8000);
+  }
+});
+
+// 时段按钮点击
+periodBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const period = btn.dataset.period;
+    debugMode = period;
+    // 高亮
+    periodBtns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    autoBtn.classList.remove('active');
+    // 触发颜色切换
+    oldColors = TIME_COLORS[targetPeriod];
+    targetPeriod = period;
+    colorTransition = 0;
+    updateHint();
+  });
+});
+
+// 实时按钮
+autoBtn.addEventListener('click', () => {
+  debugMode = 'auto';
+  periodBtns.forEach(b => b.classList.remove('active'));
+  autoBtn.classList.add('active');
+  const p = getTimePeriod();
+  if (p !== targetPeriod) {
+    oldColors = TIME_COLORS[targetPeriod];
+    targetPeriod = p;
+    colorTransition = 0;
+  }
+  periodBtns.forEach(b => {
+    if (b.dataset.period === p) b.classList.add('active');
+  });
+  updateHint();
+});
+
+// 修改 setInterval 中的自动切换逻辑：仅在 auto 模式生效
+const autoCheckInterval = setInterval(() => {
+  if (debugMode !== 'auto') return;
+  const p = getTimePeriod();
+  if (p !== targetPeriod) {
+    oldColors = TIME_COLORS[targetPeriod];
+    targetPeriod = p;
+    colorTransition = 0;
+    periodBtns.forEach(b => {
+      b.classList.toggle('active', b.dataset.period === p);
+    });
+    updateHint();
+    console.log(`🔴 时段切换: ${TIME_COLORS[p].name} ${TIME_COLORS[p].emoji}`);
+  }
+}, 30000);  // 30秒检查，比之前的60秒更频繁
+
+// 初始高亮当前时段
+periodBtns.forEach(b => {
+  if (b.dataset.period === currentPeriod) b.classList.add('active');
+});
+const initPeriod = TIME_COLORS[currentPeriod];
+console.log(`🔴 绘梨衣 · 光点 — 已唤醒`);
+console.log(`   时段: ${initPeriod.emoji} ${initPeriod.name} | 颜色: #${initPeriod.main.toString(16)}`);
+console.log(`   呼吸周期: 2.5s | 粒子: ${PARTICLE_COUNT}个 | 背景: 透明`);
+console.log(`   浏览器 --app 模式适配 | ESC 关闭窗口`);
+
+// ─── V1: 桌面正式版 ──────────────────────────────
+
+// Esc 关闭窗口（--app 模式无原生关闭按钮）
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    console.log('🔴 光点休眠 — 窗口关闭');
+    window.close();
+    // 如果 window.close() 被阻止（非 --app 模式），显示提示
+    setTimeout(() => {
+      if (!document.hidden) {
+        document.body.style.transition = 'opacity 0.5s';
+        document.body.style.opacity = '0';
+        setTimeout(() => { document.body.innerHTML = ''; }, 500);
+      }
+    }, 200);
+  }
+});
+
+// 操作提示（首次加载时显示3秒）
+const controlsHint = document.getElementById('controlsHint');
+setTimeout(() => controlsHint.classList.add('visible'), 1000);
+setTimeout(() => controlsHint.classList.remove('visible'), 6000);
+
+// 鼠标移动时短暂显示操作提示
+document.addEventListener('mousemove', () => {
+  controlsHint.classList.add('visible');
+  clearTimeout(controlsHint._hideTimer);
+  controlsHint._hideTimer = setTimeout(() => controlsHint.classList.remove('visible'), 4000);
+});
+</script>
+</body>
+</html>

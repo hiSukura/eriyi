@@ -1,0 +1,118 @@
+{
+  "source": "最后的旅行 — 夏螟虫虫 念白",
+  "target_sr": 22050,
+  "target_peak_db": -3.0,
+  "files": [
+    {
+      "name": "sentence_01",
+      "path": "data\\processed\\sentence_01_22050.wav",
+      "before": {
+        "duration_sec": 1.21,
+        "sample_rate": 44100,
+        "samples": 53361,
+        "peak_db": -0.4000000059604645,
+        "rms_db": -11.5
+      },
+      "after": {
+        "duration_sec": 1.21,
+        "sample_rate": 22050,
+        "samples": 26680,
+        "peak_db": -3.0,
+        "rms_db": -14.0
+      }
+    },
+    {
+      "name": "sentence_02",
+      "path": "data\\processed\\sentence_02_22050.wav",
+      "before": {
+        "duration_sec": 2.18,
+        "sample_rate": 44100,
+        "samples": 96138,
+        "peak_db": -0.4000000059604645,
+        "rms_db": -14.100000381469727
+      },
+      "after": {
+        "duration_sec": 2.18,
+        "sample_rate": 22050,
+        "samples": 48069,
+        "peak_db": -3.0,
+        "rms_db": -16.700000762939453
+      }
+    },
+    {
+      "name": "sentence_03",
+      "path": "data\\processed\\sentence_03_22050.wav",
+      "before": {
+        "duration_sec": 3.24,
+        "sample_rate": 44100,
+        "samples": 142884,
+        "peak_db": -0.4000000059604645,
+        "rms_db": -14.399999618530273
+      },
+      "after": {
+        "duration_sec": 3.24,
+        "sample_rate": 22050,
+        "samples": 71442,
+        "peak_db": -3.0,
+        "rms_db": -17.100000381469727
+      }
+    },
+    {
+      "name": "sentence_04",
+      "path": "data\\processed\\sentence_04_22050.wav",
+      "before": {
+        "duration_sec": 2.23,
+        "sample_rate": 44100,
+        "samples": 98343,
+        "peak_db": -0.4000000059604645,
+        "rms_db": -15.699999809265137
+      },
+      "after": {
+        "duration_sec": 2.23,
+        "sample_rate": 22050,
+        "samples": 49171,
+        "peak_db": -3.0,
+        "rms_db": -18.200000762939453
+      }
+    },
+    {
+      "name": "sentence_05",
+      "path": "data\\processed\\sentence_05_22050.wav",
+      "before": {
+        "duration_sec": 2.03,
+        "sample_rate": 44100,
+        "samples": 89523,
+        "peak_db": -0.4000000059604645,
+        "rms_db": -13.199999809265137
+      },
+      "after": {
+        "duration_sec": 2.03,
+        "sample_rate": 22050,
+        "samples": 44761,
+        "peak_db": -3.0,
+        "rms_db": -15.699999809265137
+      }
+    },
+    {
+      "name": "sentence_06",
+      "path": "data\\processed\\sentence_06_22050.wav",
+      "before": {
+        "duration_sec": 1.89,
+        "sample_rate": 44100,
+        "samples": 83349,
+        "peak_db": -0.4000000059604645,
+        "rms_db": -13.600000381469727
+      },
+      "after": {
+        "duration_sec": 1.89,
+        "sample_rate": 22050,
+        "samples": 41674,
+        "peak_db": -3.0,
+        "rms_db": -16.200000762939453
+      }
+    }
+  ],
+  "total_before_sec": 12.8,
+  "total_after_sec": 12.8,
+  "total_files": 6
+}

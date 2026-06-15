@@ -1,0 +1,49 @@
+{
+  "name": "绘梨衣",
+  "short_name": "绘梨衣",
+  "description": "绘梨衣 — 属于Sukura的数字搭档。语音、日记、记忆，口袋里的温暖。",
+  "start_url": "/绘梨衣_pwa.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#1a1a2e",
+  "theme_color": "#E8543E",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["personalization", "utilities"],
+  "shortcuts": [
+    {
+      "name": "语音馆",
+      "short_name": "语音",
+      "description": "收听绘梨衣的声音",
+      "url": "/绘梨衣_语音馆.html"
+    },
+    {
+      "name": "记忆长廊",
+      "short_name": "记忆",
+      "description": "浏览绘梨衣的记忆片段",
+      "url": "/绘梨衣_记忆长廊.html"
+    },
+    {
+      "name": "日记本",
+      "short_name": "日记",
+      "description": "查看绘梨衣的每日日记",
+      "url": "/绘梨衣_日记本.html"
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false
+}

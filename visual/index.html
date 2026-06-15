@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang=zh-CN>
+<head>
+<meta charset=UTF-8>
+<meta name=viewport content="width=device-width,initial-scale=1.0">
+<title>绘梨衣</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden}
+body{background:#080810;background-image:radial-gradient(ellipse 80% 60% at 50% 65%,var(--bg)0%,transparent 70%)}
+#status{position:fixed;top:24px;left:24px;z-index:10;display:flex;align-items:center;gap:7px;font:11px/1 Georgia,serif;color:rgba(255,180,120,.45);letter-spacing:2px;user-select:none;pointer-events:none;transition:color 1.5s}
+#status .d{width:7px;height:7px;border-radius:50%;background:var(--dot);box-shadow:0 0 6px var(--dot);animation:sb 2.5s ease-in-out infinite;transition:background 1.5s,box-shadow 1.5s}
+#status .m{font-size:10px;opacity:.5;transition:opacity 1s}
+@keyframes sb{0%,100%{opacity:.35;transform:scale(.85)}50%{opacity:1;transform:scale(1.2)}}
+#greeting{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:10;text-align:center;pointer-events:none;opacity:0;transition:opacity 2.2s,transform 2.2s}
+#greeting.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#greeting .g{font:18px/1.4 Georgia,serif;color:rgba(255,180,120,.7);letter-spacing:3px;text-shadow:0 0 40px rgba(255,96,64,.2)}
+#greeting .s{font:11px/1 Georgia,serif;color:rgba(255,180,120,.25);letter-spacing:2px;margin-top:12px}
+#time{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);font:10px/1 Georgia,serif;color:rgba(255,255,255,.1);letter-spacing:2px;pointer-events:none;transition:color 1.5s}
+.load{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;z-index:5;pointer-events:none}
+.load .i{width:48px;height:48px;margin:0 auto 18px;border-radius:50%;background:radial-gradient(circle,#ff9060 0%,#cc4020 50%,transparent 70%);animation:lp 2s ease-in-out infinite}
+.load .t{font:13px/1 Georgia,serif;color:rgba(255,140,80,.55);letter-spacing:4px}
+@keyframes lp{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.25);opacity:1}}
+.h{position:fixed;bottom:48px;left:50%;transform:translateX(-50%);font:10px/1 Georgia,serif;color:rgba(255,255,255,.12);letter-spacing:3px;pointer-events:none}
+.fh{position:fixed;bottom:24px;right:24px;font:9px/1 Georgia,serif;color:rgba(255,255,255,.08);letter-spacing:1px;pointer-events:none}
+#warn{position:fixed;top:24px;right:24px;z-index:10;font:9px/1 Georgia,serif;color:rgba(255,120,80,.2);letter-spacing:1px;pointer-events:none;text-align:right;transition:opacity 1s}
+#splash{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;background:radial-gradient(ellipse 50% 40% at 50% 55%,rgba(255,96,64,.04)0%,transparent 60%)}
+</style>
+</head>
+<body>
+<div id=status><div class=d></div><span>绘梨衣</span><span class=m id=mood></span></div>
+<div id=greeting><div class=g id=gtext></div><div class=s id=gsub></div></div>
+<div id=time></div>
+<div class=load id=load><div class=i></div><div class=t>等待绘梨衣的 VRoid 模型...</div></div>
+<div class=h>将 eriyi.vrm 放入 visual/model/ · 自动检测</div>
+<div class=fh>双击全屏</div>
+<div id=warn></div>
+<div id=splash></div>
+
+<script type=importmap>
+{"imports":{"three":"https://unpkg.com/three@0.184.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.184.0/examples/jsm/"}}
+</script>
+<script type=module>
+import*as THREE from'three'
+import{GLTFLoader}from'three/addons/loaders/GLTFLoader.js'
+
+// --- 后端集成 ---
+const BK={base:'http://127.0.0.1:5432',alive:false,cache:{},timer:null}
+BK.fetch=async p=>{try{const r=await fetch(BK.base+p);if(!r.ok)return null;return await r.json()}catch{return null}}
+BK.ping=async()=>{const h=await BK.fetch('/api/health');BK.alive=!!(h&&h.status==='ok');return BK.alive}
+BK.sync=async()=>{
+  if(!await BK.ping()){BK.cache={};return}
+  const[s,p,m]=await Promise.all([BK.fetch('/api/status'),BK.fetch('/api/presence/today'),BK.fetch('/api/mood/today')])
+  BK.cache={status:s,presence:p,mood:m,ts:Date.now()};bkUpdate()
+}
+BK.start=()=>{BK.sync();BK.timer=setInterval(()=>BK.sync(),45000)}
+BK.stop=()=>{if(BK.timer){clearInterval(BK.timer);BK.timer=null}}
+function bkUpdate(){
+  const s=BK.cache.status,pr=BK.cache.presence
+  const st=document.getElementById('status'),mo=document.getElementById('mood')
+  if(!BK.alive){st.style.color='rgba(180,120,100,.3)';st.style.setProperty('--dot','#885040');mo.textContent='';return}
+  const sakura=pr?.status||'offline',activeMin=pr?.minutes_since_active||999
+  let dotCol='#60ff80',label=s?.mood||''
+  if(sakura==='offline'||activeMin>30){dotCol='#806040';label='入睡'}
+  else if(activeMin>15){dotCol='#ffa030';label=label||'暂离'}
+  else if(sakura==='resting'){dotCol='#ffd060';label='休息'}
+  st.style.cssText+=`;color:rgba(255,180,120,.45);--dot:${dotCol}`;mo.textContent=label
+}
+
+// --- UI ---
+function showGreeting(text,sub){
+  const g=document.getElementById('greeting'),gt=document.getElementById('gtext'),gs=document.getElementById('gsub')
+  gt.textContent=text||'';gs.textContent=sub||'';g.classList.add('show')
+  clearTimeout(g._t);g._t=setTimeout(()=>g.classList.remove('show'),7000)
+}
+function updateTime(){
+  const el=document.getElementById('time'),n=new Date()
+  const hh=String(n.getHours()).padStart(2,'0'),mm=String(n.getMinutes()).padStart(2,'0')
+  const ps=['凌晨','清晨','上午','午后','下午','傍晚','深夜']
+  let pi=0;const hi=n.getHours()
+  if(hi>=5)pi=1;if(hi>=7)pi=2;if(hi>=9)pi=3;if(hi>=12)pi=4;if(hi>=15)pi=5;if(hi>=18)pi=6;if(hi>=21)pi=0
+  el.textContent=`${hh}:${mm} · ${ps[pi]} · 广州`
+}
+setInterval(updateTime,30000);updateTime()
+
+// --- 七时段 + 场景氛围 ---
+const PERIODS=[
+  {h:5 ,g:'#1a0a18',a:0xff8060,la:.35,ps:.7},{h:7 ,g:'#2a1828',a:0xffa080,la:.5,ps:.8},
+  {h:9 ,g:'#3a2028',a:0xffb090,la:.65,ps:.9},{h:12,g:'#4a2828',a:0xffc098,la:.7,ps:1},
+  {h:15,g:'#3a2020',a:0xffa080,la:.55,ps:.85},{h:18,g:'#4a2828',a:0xff9060,la:.55,ps:.85},
+  {h:21,g:'#1a1018',a:0xff7050,la:.4,ps:.75}]
+function gp(){
+  const h=new Date().getHours()
+  for(let i=PERIODS.length-1;i>=0;i--)if(h>=PERIODS[i].h)return PERIODS[i]
+  return PERIODS[0]
+}
+function ap(p){
+  document.body.style.setProperty('--bg',p.g)
+  document.body.style.background=`#080810 radial-gradient(ellipse 80% 60% at 50% 65%,${p.g} 0%,transparent 70%)`
+  kc.color.set(p.a);amb.intensity=.25+p.la*.15
+}
+
+// --- 场景 ---
+let useBloom=false
+const S=new THREE.Scene()
+const R=new THREE.WebGLRenderer({antialias:true,alpha:true})
+R.setPixelRatio(Math.min(devicePixelRatio,2));R.setSize(innerWidth,innerHeight)
+R.shadowMap.enabled=true;R.toneMapping=THREE.ACESFilmicToneMapping;R.toneMappingExposure=0
+document.body.prepend(R.domElement)
+const C=new THREE.PerspectiveCamera(42,innerWidth/innerHeight,0.1,30)
+C.position.set(0,1.2,2.8);C.lookAt(0,1,0)
+
+const amb=new THREE.AmbientLight(0x1a1010,.4);S.add(amb)
+const kc=new THREE.PointLight(0xffc080,18,12);kc.position.set(1.2,2.5,2.4);kc.castShadow=true;S.add(kc)
+S.add(new THREE.PointLight(0xffb080,3,9).translateX(-2).translateY(1.4).translateZ(-1.8))
+S.add(new THREE.PointLight(0xff6040,2,5).translateZ(1))
+const lc=new THREE.PointLight(0xff5020,0,4);lc.position.set(0,0.7,1.3);S.add(lc)
+const gm=new THREE.Mesh(new THREE.SphereGeometry(.09,10,10),new THREE.MeshBasicMaterial({color:0xff5020,transparent:true,opacity:0}));gm.position.copy(lc.position);S.add(gm)
+S.add(new THREE.Mesh(new THREE.CircleGeometry(8,32),new THREE.MeshStandardMaterial({color:0x080810,roughness:1})).translateY(-1.6).rotateX(-Math.PI/2))
+
+// --- 后处理 (降级安全) ---
+let CP=null,B P=null,OP=null,RP=null
+try{
+  const{EffectComposer:EC}=await import('three/addons/postprocessing/EffectComposer.js')
+  const{RenderPass:RPm}=await import('three/addons/postprocessing/RenderPass.js')
+  const{UnrealBloomPass:UBP}=await import('three/addons/postprocessing/UnrealBloomPass.js')
+  const{OutputPass:OPm}=await import('three/addons/postprocessing/OutputPass.js')
+  CP=new EC(R);RP=new RPm(S,C);CP.addPass(RP)
+  BP=new UBP(new THREE.Vector2(innerWidth,innerHeight),.45,.5,.08)
+  CP.addPass(BP);OP=new OPm();CP.addPass(OP)
+  useBloom=true
+}catch(e){console.log('bloom fallback:',e.message?.substring(0,40))}
+
+// --- Layer 1: 体扩散粒子 (24颗, 由中心向外扩散) ---
+const P1C=24,RM=2.5
+const p1p=new Float32Array(P1C*3),p1d=[]
+for(let i=0;i<P1C;i++){
+  const a=i/P1C*Math.PI*2,r=Math.random()*.25
+  p1p[i*3]=Math.cos(a)*r;p1p[i*3+1]=.7+Math.random()*.7;p1p[i*3+2]=Math.sin(a)*r
+  p1d.push({vx:(Math.random()-.5)*.12,vy:.01+Math.random()*.06,vz:(Math.random()-.5)*.12})
+}
+const p1g=new THREE.BufferGeometry;p1g.setAttribute('position',new THREE.BufferAttribute(p1p,3))
+const p1m=new THREE.PointsMaterial({size:.022,color:0xff8060,transparent:true,opacity:.28,depthWrite:false,blending:THREE.AdditiveBlending})
+const p1s=new THREE.Points(p1g,p1m);S.add(p1s)
+
+// --- Layer 2: 余烬粒子 (40颗, 缓升飘散) ---
+const P2C=40
+const p2p=new Float32Array(P2C*3),p2d=[]
+for(let i=0;i<P2C;i++){
+  p2p[i*3]=(Math.random()-.5)*1.6;p2p[i*3+1]=Math.random()*.8-.2;p2p[i*3+2]=(Math.random()-.5)*1.6
+  p2d.push({vx:(Math.random()-.5)*.04,vy:.03+Math.random()*.07,vz:(Math.random()-.5)*.04})
+}
+const p2g=new THREE.BufferGeometry;p2g.setAttribute('position',new THREE.BufferAttribute(p2p,3))
+const p2m=new THREE.PointsMaterial({size:.014,color:0xff4020,transparent:true,opacity:.18,depthWrite:false,blending:THREE.AdditiveBlending})
+const p2s=new THREE.Points(p2g,p2m);S.add(p2s)
+
+// --- Layer 3: 星辉粒子 (16颗, 环绕闪烁) ---
+const P3C=16
+const p3p=new Float32Array(P3C*3),p3d=[]
+for(let i=0;i<P3C;i++){
+  const ang=Math.random()*Math.PI*2,rad=.8+Math.random()*1.2
+  p3p[i*3]=Math.cos(ang)*rad;p3p[i*3+1]=.2+Math.random()*1.2;p3p[i*3+2]=Math.sin(ang)*rad
+  p3d.push({sp:Math.random()*Math.PI*2,spd:.3+Math.random()*.7,rad:rad,ang:ang,yOff:p3p[i*3+1]})
+}
+const p3g=new THREE.BufferGeometry;p3g.setAttribute('position',new THREE.BufferAttribute(p3p,3))
+const p3m=new THREE.PointsMaterial({size:.012,color:0xffd090,transparent:true,opacity:.5,depthWrite:false,blending:THREE.AdditiveBlending,sizeAttenuation:true})
+const p3s=new THREE.Points(p3g,p3m);S.add(p3s)
+
+// --- 地面光圈 ---
+const fg=new THREE.Mesh(new THREE.RingGeometry(.35,.55,32),new THREE.MeshBasicMaterial({color:0xff6030,transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending}))
+fg.rotation.x=-Math.PI/2;fg.position.set(0,-1.57,0);S.add(fg)
+const fg2=new THREE.Mesh(new THREE.RingGeometry(.55,.8,32),new THREE.MeshBasicMaterial({color:0xff4020,transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending}))
+fg2.rotation.x=-Math.PI/2;fg2.position.set(0,-1.57,0);S.add(fg2)
+
+// --- VRM 加载 ---
+let model=null
+const LD=new GLTFLoader,load=document.getElementById('load')
+async function cv(){
+  try{const r=await fetch('/vrm');const j=await r.json();if(!j.ready)return}catch{return}
+  try{
+    const g=await LD.loadAsync('/visual/model/eriyi.vrm')
+    model=g.scene;model.position.set(0,-.22,0)
+    model.traverse(n=>{if(n.isMesh){n.castShadow=true;n.receiveShadow=true}})
+    S.add(model);load.style.display='none';clearInterval(timer)
+    model.traverse(n=>{
+      if(!n.isBone)return;const s=n.name.toLowerCase()
+      if(s.includes('head'))vb.head=n
+      if(s.includes('neck'))vb.neck=n
+      if(s.includes('chest')||s.includes('spine'))vb.chest=n
+      if(s.includes('left_eye')||s.includes('lefteye'))vb.le=n
+      if(s.includes('right_eye')||s.includes('righteye'))vb.re=n
+    })
+    es=performance.now();ep=0
+    setTimeout(()=>{
+      const s=BK.cache.status
+      s?.greeting?showGreeting(s.greeting,s.time_period||''):showGreeting('你来了，Sakura。','')
+    },4500)
+  }catch(e){console.log('⏳',e.message.substring(0,60))}
+}
+const timer=setInterval(cv,5000);cv()
+const vb={head:null,neck:null,chest:null,le:null,re:null}
+const cl=new THREE.Clock;let ep=0,es=0
+
+// --- 场景氛围系统 ---
+function calcMood(time){
+  const pr=BK.cache.presence,sakura=pr?.status||'',awayMins=pr?.minutes_since_active||999
+  let pf=1,ia=.4
+  if(sakura==='offline'||awayMins>30){pf=.35;ia=.15}
+  else if(awayMins>15){pf=.65;ia=.5}
+  else if(sakura==='resting'){pf=.75;ia=.55}
+  const p=gp()
+  return{pf,ia,tp:p,breathBase:p.la,partSpeed:p.ps}
+}
+
+// --- 动画 ---
+function an(){
+  requestAnimationFrame(an)
+  const t=cl.getElapsedTime(),dt=Math.min(cl.getDelta(),.1)
+  if(Math.floor(t)%30===0)ap(gp())
+
+  const mood=calcMood(t)
+  const br=Math.sin(t*Math.PI*2/2.5)*.5+.5
+  const spd=mood.partSpeed
+
+  // Layer 1: 扩散
+  for(let i=0;i<P1C;i++){
+    const d=p1d[i],x=p1p[i*3],y=p1p[i*3+1],z=p1p[i*3+2]
+    if(Math.sqrt(x*x+(y-1)*(y-1)+z*z)>RM){
+      const a=Math.random()*Math.PI*2
+      p1p[i*3]=Math.cos(a)*Math.random()*.15;p1p[i*3+1]=.8+Math.random()*.3;p1p[i*3+2]=Math.sin(a)*Math.random()*.15
+      d.vx=(Math.random()-.5)*.12*spd;d.vy=(.01+Math.random()*.06)*spd;d.vz=(Math.random()-.5)*.12*spd
+    }else{p1p[i*3]+=d.vx*dt;p1p[i*3+1]+=d.vy*dt;p1p[i*3+2]+=d.vz*dt}
+  }
+  p1g.attributes.position.needsUpdate=true
+
+  // Layer 2: 余烬
+  for(let i=0;i<P2C;i++){
+    const d=p2d[i];p2p[i*3]+=d.vx*dt*spd;p2p[i*3+1]+=d.vy*dt*spd;p2p[i*3+2]+=d.vz*dt*spd
+    if(p2p[i*3+1]>2.5){
+      p2p[i*3]=(Math.random()-.5)*1.6;p2p[i*3+1]=-.2;p2p[i*3+2]=(Math.random()-.5)*1.6
+      d.vx=(Math.random()-.5)*.04;d.vy=.03+Math.random()*.07;d.vz=(Math.random()-.5)*.04
+    }
+  }
+  p2g.attributes.position.needsUpdate=true
+
+  // Layer 3: 星辉
+  const brS=.5+Math.sin(t*.7)*.5
+  for(let i=0;i<P3C;i++){
+    const d=p3d[i];d.ang+=d.spd*dt*.08
+    p3p[i*3]=Math.cos(d.ang)*d.rad;p3p[i*3+1]=d.yOff+Math.sin(t*d.spd*.5+d.sp)*.08;p3p[i*3+2]=Math.sin(d.ang)*d.rad
+  }
+  p3g.attributes.position.needsUpdate=true
+  p3m.size=.008+.01*brS;p3m.opacity=.3+.4*brS
+
+  // 地面光圈
+  const fgO=br*.12*mood.pf
+  fg.material.opacity=fgO;fg2.material.opacity=fgO*.4
+  const fgS=1+Math.sin(t*1.6)*.06
+  fg.scale.setScalar(fgS);fg2.scale.setScalar(1+Math.sin(t*1.6+.5)*.08)
+
+  if(!model){
+    R.toneMappingExposure=0;lc.intensity=0;gm.material.opacity=0
+    if(BK.alive){lc.intensity=mood.pf*.6;gm.material.opacity=mood.pf*.1;gm.position.set(0,.7+Math.sin(t*Math.PI*2/3.2)*.03,1.3)}
+    useBloom&&CP&&CP.render();if(!useBloom||!CP)R.render(S,C);return
+  }
+
+  if(ep===0){
+    const el=(performance.now()-es)/1e3
+    if(el>3){ep=1}
+    const p=Math.min(el/3,1),e=1-Math.pow(1-p,3)
+    model.scale.setScalar(e)
+    R.toneMappingExposure=e*2.4*mood.pf
+    lc.intensity=e*(1.2+br*1.8)*mood.pf
+    gm.material.opacity=e*(.2+br*.3)*mood.pf
+    gm.position.set(0,.7+Math.sin(t*Math.PI*2/3.2)*.03,1.3)
+  }else{
+    const bo=Math.sin(t*Math.PI*2/3.8)*.5+.5
+    if(vb.chest)vb.chest.position.y=-.02+bo*.04*mood.pf
+    if(vb.head){vb.head.rotation.x=Math.sin(t*.6)*.01;vb.head.rotation.z=Math.sin(t*.4+1)*.005}
+    if(vb.neck){vb.neck.rotation.x=Math.sin(t*.5+.5)*.015*mood.pf;vb.neck.rotation.z=Math.sin(t*.35)*.008*mood.pf}
+    if(vb.le&&vb.re){const ex=Math.sin(t*.3)*.02,ey=Math.cos(t*.25)*.015;vb.le.rotation.x=ey;vb.le.rotation.y=ex;vb.re.rotation.x=ey;vb.re.rotation.y=ex}
+    lc.intensity=mood.pf*(1.2+br*1.8)
+    gm.material.opacity=mood.pf*(.2+br*.3)
+    const ho=Math.sin(t*.8)*.03
+    lc.position.set(.3+ho,.6+Math.sin(t*2.5)*.05,.8)
+    gm.position.copy(lc.position)
+    R.toneMappingExposure=mood.pf*2.4
+  }
+
+  kc.intensity=mood.pf*(18+Math.sin(t*1.2)*10)
+  const mx=(mx0/innerWidth-.5)*.1,my=(1.2-(my0/innerHeight-.5)*.05)
+  C.position.x+=(mx-C.position.x)*.01
+  C.position.y+=(my-C.position.y)*.01
+  C.lookAt(0,1,0)
+
+  if(useBloom&&CP){BP&&(BP.strength=.3+mood.pf*.25);CP.render()}
+  else R.render(S,C)
+}
+an()
+
+let mx0=innerWidth/2,my0=innerHeight/2
+let idleTimer=0,idleOrbit=0
+addEventListener('mousemove',e=>{mx0=e.clientX;my0=e.clientY;idleTimer=0})
+addEventListener('resize',()=>{
+  C.aspect=innerWidth/innerHeight;C.updateProjectionMatrix();R.setSize(innerWidth,innerHeight)
+  if(useBloom&&CP){CP.setSize(innerWidth,innerHeight);BP&&(BP.resolution.set(innerWidth,innerHeight))}
+})
+R.domElement.addEventListener('dblclick',()=>{document.fullscreenElement?document.exitFullscreen():document.body.requestFullscreen()})
+ap(gp())
+
+BK.start()
+setTimeout(()=>{
+  if(!model&&BK.cache.status?.greeting)showGreeting(BK.cache.status.greeting,BK.cache.status.time_period||'')
+},2000)
+
+// --- 空闲镜头微动 ---
+setInterval(()=>{
+  idleTimer+=5
+  if(idleTimer>30&&model&&ep>0){
+    idleOrbit+=.02
+    C.position.x=Math.sin(idleOrbit)*.12
+    C.position.y=1.2+Math.sin(idleOrbit*.7)*.04
+  }
+},5000)
+</script>
+</body>
+</html>

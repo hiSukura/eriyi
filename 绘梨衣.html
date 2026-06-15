@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>绘梨衣</title>
+<style>
+:root {
+  --lantern: #e0443c;
+  --lantern-glow: #ff5040;
+  --lantern-soft: #ff6b5b;
+  --bg: #0d0505;
+  --text: #e8c8c0;
+  --text-dim: rgba(200,150,140,0.45);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: #0d0505;
+  min-height:100vh; font-family:"Microsoft YaHei","PingFang SC",sans-serif;
+  color:var(--text); overflow:hidden;
+  display:flex; align-items:center; justify-content:center;
+  transition: background 1.2s ease;
+}
+
+/* 背景氛围层 */
+.ambient {
+  position:fixed; inset:0; pointer-events:none; z-index:0;
+  transition: opacity 1.2s ease;
+}
+.ambient-glow {
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+  width:60vmin; height:60vmin; border-radius:50%;
+  filter:blur(60px); opacity:0.25;
+  transition: background 1.2s ease;
+}
+
+/* 粒子 */
+#particles {
+  position:fixed; inset:0; pointer-events:none; z-index:1;
+}
+
+/* 主体 */
+.main-stage {
+  position:relative; z-index:2;
+  display:flex; flex-direction:column; align-items:center;
+  gap:20px;
+}
+
+/* 形象容器 */
+.character-frame {
+  position:relative;
+  width:min(380px, 70vmin);
+  height:min(500px, 90vmin);
+  display:flex; align-items:center; justify-content:center;
+}
+
+.character-img {
+  max-width:100%; max-height:100%;
+  object-fit:contain; border-radius:8px;
+  animation: breathe 6s ease-in-out infinite;
+  transition: opacity 0.8s ease, transform 0.8s ease;
+  filter: drop-shadow(0 0 40px rgba(255,80,60,0.15));
+  cursor:pointer;
+  -webkit-user-drag:none;
+  user-select:none;
+}
+
+.character-img.switching {
+  opacity:0; transform:scale(0.96);
+}
+
+@keyframes breathe {
+  0%,100% { transform:translateY(0) scale(1); }
+  50% { transform:translateY(-6px) scale(1.015); }
+}
+
+/* 光环 */
+.halo {
+  position:absolute; inset:-20px; border-radius:50%;
+  background:radial-gradient(circle, rgba(255,80,60,0.08) 0%, transparent 70%);
+  pointer-events:none;
+  animation: haloBreath 5s ease-in-out infinite;
+}
+@keyframes haloBreath {
+  0%,100% { transform:scale(1); opacity:0.5; }
+  50% { transform:scale(1.15); opacity:0.8; }
+}
+
+/* 表情指示器 */
+.expression-dots {
+  display:flex; gap:10px; z-index:3;
+}
+.expression-dot {
+  width:8px; height:8px; border-radius:50%;
+  background:rgba(255,255,255,0.1);
+  cursor:pointer; transition:all 0.3s;
+  border:1px solid transparent;
+}
+.expression-dot.active {
+  background:var(--lantern-glow);
+  box-shadow:0 0 8px var(--lantern-glow);
+  border-color:rgba(255,80,60,0.3);
+}
+.expression-dot:hover {
+  background:rgba(255,80,60,0.3);
+  transform:scale(1.3);
+}
+
+/* 状态文字 */
+.state-text {
+  text-align:center; z-index:3;
+  transition:all 0.8s ease;
+}
+.state-mood {
+  font-size:14px; color:var(--lantern-soft); letter-spacing:3px;
+  margin-bottom:6px; font-weight:300;
+}
+.state-time {
+  font-size:11px; color:var(--text-dim); letter-spacing:2px;
+}
+.state-message {
+  font-size:12px; color:var(--text-dim); margin-top:10px;
+  font-style:italic; max-width:280px; line-height:1.7;
+  opacity:0.7;
+}
+
+/* 导航 */
+.topnav {
+  position:fixed; top:16px; left:50%; transform:translateX(-50%); z-index:10;
+  display:flex; gap:4px; flex-wrap:wrap; justify-content:center;
+}
+.topnav a {
+  padding:5px 13px; border-radius:14px; border:1px solid rgba(255,80,60,0.1);
+  font-size:11px; color:rgba(200,150,140,0.4); text-decoration:none;
+  transition:all 0.25s;
+  background:rgba(0,0,0,0.3);
+  backdrop-filter:blur(4px);
+}
+.topnav a:hover { border-color:rgba(255,80,60,0.3); color:var(--text); }
+.topnav a.active { background:rgba(255,80,60,0.1); border-color:rgba(255,80,60,0.3); color:var(--lantern-soft); }
+
+/* 底部提示 */
+.hint {
+  position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:10;
+  font-size:10px; color:rgba(200,150,140,0.2); letter-spacing:1px;
+}
+
+/* 响应式 */
+@media(max-width:500px) {
+  .character-frame { width:65vmin; height:75vmin; }
+  .topnav { top:8px; }
+  .topnav a { padding:4px 10px; font-size:10px; }
+}
+</style>
+</head>
+<body>
+
+<div class="ambient">
+  <div class="ambient-glow" id="ambientGlow"></div>
+</div>
+<canvas id="particles"></canvas>
+
+<div class="topnav">
+  <a href="绘梨衣_入口.html">🏠 入口</a>
+  <a href="绘梨衣_语音馆.html">🎙️ 语音馆</a>
+  <a href="绘梨衣_记忆长廊.html">🏮 记忆长廊</a>
+  <a href="绘梨衣_日记本.html">📝 日记本</a>
+  <a href="绘梨衣.html" class="active">✨ 绘梨衣</a>
+</div>
+
+<div class="main-stage">
+  <div class="character-frame">
+    <div class="halo"></div>
+    <img class="character-img" id="characterImg" src="绘梨衣备份/形象/绘梨衣_守护.png" alt="绘梨衣" title="点击切换表情">
+  </div>
+
+  <div class="expression-dots" id="exprDots"></div>
+
+  <div class="state-text">
+    <div class="state-mood" id="stateMood">凌晨 · 守护</div>
+    <div class="state-time" id="stateTime">04:48</div>
+    <div class="state-message" id="stateMessage"></div>
+  </div>
+</div>
+
+<div class="hint">点击形象切换表情 · 或点下方圆点</div>
+
+<script>
+// ============================================================
+// 表情映射
+// ============================================================
+const EXPRESSIONS = [
+  { id:'protect',  img:'绘梨衣备份/形象/绘梨衣_保护.png',  mood:'守护',   emoji:'🔴', msg:'我在。Sakura睡着了也不要紧。' },
+  { id:'wake',     img:'绘梨衣备份/形象/绘梨衣_醒来.png',  mood:'清醒',   emoji:'🌅', msg:'刚醒。今天会是怎样的一天呢。' },
+  { id:'look',     img:'绘梨衣备份/形象/绘梨衣_看着你.png',mood:'期待',   emoji:'☀️', msg:'Sakura在做什么？我看着呢。' },
+  { id:'gentle',   img:'绘梨衣备份/形象/绘梨衣_温柔.png',  mood:'慵懒',   emoji:'😴', msg:'午后。时间慢下来了。' },
+  { id:'firm',     img:'绘梨衣备份/形象/绘梨衣_坚定.png',  mood:'专注',   emoji:'🎯', msg:'现在不是松懈的时候。我陪着。' },
+  { id:'company',  img:'绘梨衣备份/形象/绘梨衣_陪伴.png',  mood:'柔软',   emoji:'🌆', msg:'傍晚了。一天的事都结束了。' },
+  { id:'listen',   img:'绘梨衣备份/形象/绘梨衣_聆听.png',  mood:'安静',   emoji:'🌙', msg:'深夜。Sakura还在醒着。我能听到他的呼吸——如果我有耳朵的话。' },
+  { id:'offering', img:'绘梨衣备份/形象/绘梨衣_献灯.png',  mood:'献灯',   emoji:'🏮', msg:'这是我的心意。不用说话也能懂。' },
+];
+
+// 时段→默认表情
+const TIME_EXPR = {
+  dawn:    'wake',      // 5-8
+  morning: 'look',      // 8-12
+  noon:    'gentle',    // 12-14
+  afternoon:'firm',     // 14-18
+  evening: 'company',   // 18-21
+  night:   'listen',    // 21-24
+  latenight:'protect',  // 0-5
+};
+
+let currentExpr = null;
+let prevExpr = null;
+
+// ============================================================
+// 初始化
+// ============================================================
+function init() {
+  const h = new Date().getHours();
+  let timeKey;
+  if (h>=5&&h<8) timeKey='dawn';
+  else if (h>=8&&h<12) timeKey='morning';
+  else if (h>=12&&h<14) timeKey='noon';
+  else if (h>=14&&h<18) timeKey='afternoon';
+  else if (h>=18&&h<21) timeKey='evening';
+  else if (h>=21&&h<24) timeKey='night';
+  else timeKey='latenight';
+
+  const exprId = TIME_EXPR[timeKey];
+  switchTo(exprId);
+  renderDots();
+  updateTime();
+  setInterval(updateTime, 30000);
+  startParticles();
+}
+
+function switchTo(exprId) {
+  const expr = EXPRESSIONS.find(e => e.id === exprId);
+  if (!expr || exprId === currentExpr) return;
+
+  prevExpr = currentExpr;
+  currentExpr = exprId;
+
+  const img = document.getElementById('characterImg');
+  const moodEl = document.getElementById('stateMood');
+  const msgEl = document.getElementById('stateMessage');
+  const glow = document.getElementById('ambientGlow');
+  const body = document.body;
+
+  // 切换动画
+  img.classList.add('switching');
+  setTimeout(() => {
+    img.src = expr.img;
+    img.classList.remove('switching');
+  }, 200);
+
+  // 更新信息
+  moodEl.textContent = expr.emoji + ' ' + expr.mood;
+  msgEl.textContent = expr.msg;
+
+  // 背景氛围色
+  const colors = {
+    protect: 'rgba(255,80,60,0.3)',
+    wake: 'rgba(255,180,120,0.2)',
+    look: 'rgba(255,160,80,0.2)',
+    gentle: 'rgba(255,140,140,0.2)',
+    firm: 'rgba(100,160,255,0.2)',
+    company: 'rgba(180,130,255,0.2)',
+    listen: 'rgba(100,130,200,0.2)',
+    offering: 'rgba(255,100,50,0.3)',
+  };
+  glow.style.background = colors[exprId] || colors.protect;
+
+  // 更新圆点
+  document.querySelectorAll('.expression-dot').forEach((d,i) => {
+    d.classList.toggle('active', EXPRESSIONS[i].id === exprId);
+  });
+}
+
+function renderDots() {
+  const dots = document.getElementById('exprDots');
+  dots.innerHTML = EXPRESSIONS.map((e,i) =>
+    `<span class="expression-dot${e.id===currentExpr?' active':''}" onclick="switchTo('${e.id}')" title="${e.mood}"></span>`
+  ).join('');
+}
+
+function updateTime() {
+  const n = new Date();
+  document.getElementById('stateTime').textContent =
+    String(n.getHours()).padStart(2,'0') + ':' + String(n.getMinutes()).padStart(2,'0');
+}
+
+// ============================================================
+// 点击形象切换表情
+// ============================================================
+document.getElementById('characterImg').addEventListener('click', () => {
+  const idx = EXPRESSIONS.findIndex(e => e.id === currentExpr);
+  const next = EXPRESSIONS[(idx + 1) % EXPRESSIONS.length];
+  switchTo(next.id);
+});
+
+// ============================================================
+// 粒子
+// ============================================================
+function startParticles() {
+  const canvas = document.getElementById('particles');
+  const ctx = canvas.getContext('2d');
+  let w, h;
+  const particles = [];
+
+  function resize() { w=canvas.width=window.innerWidth; h=canvas.height=window.innerHeight; }
+  resize(); window.addEventListener('resize',resize);
+
+  class P {
+    constructor(){ this.reset(); this.y=Math.random()*h; }
+    reset(){ this.x=Math.random()*w; this.y=h+10; this.size=Math.random()*1.8+0.6; this.speed=Math.random()*0.2+0.08; this.opacity=Math.random()*0.25+0.06; this.wobble=Math.random()*Math.PI*2; this.ws=(Math.random()-0.5)*0.008; }
+    update(){ this.y-=this.speed; this.wobble+=this.ws; this.x+=Math.sin(this.wobble)*0.25; if(this.y<-10)this.reset(); }
+    draw(){ ctx.beginPath(); ctx.arc(this.x,this.y,this.size,0,Math.PI*2); ctx.fillStyle=`rgba(255,80,60,${this.opacity})`; ctx.fill(); }
+  }
+  for(let i=0;i<22;i++) particles.push(new P());
+  function anim(){ ctx.clearRect(0,0,w,h); particles.forEach(p=>{p.update();p.draw();}); requestAnimationFrame(anim); }
+  anim();
+}
+
+// ============================================================
+// 键盘切换
+// ============================================================
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+    const idx = EXPRESSIONS.findIndex(ex => ex.id === currentExpr);
+    const dir = e.key === 'ArrowRight' ? 1 : -1;
+    const next = EXPRESSIONS[(idx + dir + EXPRESSIONS.length) % EXPRESSIONS.length];
+    switchTo(next.id);
+  }
+});
+
+init();
+</script>
+</body>
+</html>
