@@ -44,6 +44,14 @@ async def lifespan(app: FastAPI):
         v_count = voice_service.sync_voice_files_to_db()
         print(f"   同步完成: {d_count} 篇日记, {v_count} 个语音文件")
         milestone_service.run_auto_detect()
+        # 语义搜索索引
+        try:
+            from services import embedding_service
+            e_stats = embedding_service.rebuild_all(force=False)
+            if e_stats["total"]:
+                print(f"   语义索引: {e_stats['total']} 条向量已就绪")
+        except Exception as e:
+            print(f"   语义索引警告: {e}")
     except Exception as e:
         print(f"   同步警告: {e}")
 
@@ -101,6 +109,7 @@ from routes.milestone import router as milestone_router
 from routes.mood import router as mood_router
 from routes.tts import router as tts_router
 from routes.evolution import router as evolution_router
+from routes.search import router as search_router
 
 app.include_router(diary_router)
 app.include_router(memory_router)
@@ -113,6 +122,7 @@ app.include_router(milestone_router)
 app.include_router(mood_router)
 app.include_router(tts_router)
 app.include_router(evolution_router)
+app.include_router(search_router)
 
 
 # ─── 健康检查 ───

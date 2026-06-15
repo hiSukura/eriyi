@@ -65,6 +65,22 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 .sm-btn button{flex:1;padding:12px;border-radius:10px;border:none;font-size:14px;font-weight:600;cursor:pointer}
 .sm-btn .pri{background:var(--red);color:#fff}
 .sm-btn .sec{background:rgba(255,255,255,.08);color:var(--text)}
+/* Search */
+.sb-btn{background:none;border:none;color:var(--text-dim);font-size:16px;cursor:pointer;padding:4px;transition:color .2s}
+.sb-btn.on{color:var(--red)}
+.sb-p{display:none;margin-bottom:16px;padding:0;transition:all .2s}
+.sb-p.on{display:block}
+.sb-i{width:100%;padding:12px 16px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:15px;font-family:inherit;outline:none}
+.sb-i:focus{border-color:var(--red)}
+.sb-i::placeholder{color:var(--text-faint)}
+.sr{display:flex;flex-direction:column;gap:6px;margin-bottom:24px}
+.sri{display:flex;align-items:flex-start;gap:8px;padding:10px 14px;background:var(--bg-card);border-radius:var(--radius-sm);border:1px solid var(--border);font-size:12px;cursor:pointer;transition:all .15s;position:relative}
+.sri:active{transform:scale(.97)}
+.sri-sc{position:absolute;top:6px;right:8px;font-size:9px;color:var(--text-faint)}
+.sri-ty{font-size:10px;color:var(--red);white-space:nowrap;margin-top:2px}
+.sri-tx{flex:1;line-height:1.5;color:var(--text)}
+.sri-da{font-size:10px;color:var(--text-faint);margin-top:2px}
+.sr-e{text-align:center;padding:20px;color:var(--text-dim);font-size:12px}
 </style>
 </head>
 <body>
@@ -76,10 +92,15 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
     <div><div class="hd-n">绘梨衣</div><div class="hd-s">ERII · SAKURA'S PARTNER</div></div>
   </div>
   <div class="hd-r"><span class="ol-d" id="online-dot"></span><span id="online-txt">--</span></div>
+  <button class="sb-btn" id="sb-btn" onclick="toggleSearch()" title="搜索记忆">🔍</button>
   <button class="settings-btn" onclick="openSettings()" title="设置">⚙</button>
 </header>
 <main class="mn">
   <div class="gc"><div class="gc-t" id="gc-t">--</div><div class="gc-m" id="gc-m">--</div></div>
+  <div class="sb-p" id="sb-p">
+    <input class="sb-i" id="sb-i" type="text" placeholder="搜索过去的记忆… 比如：那天熬夜做了什么" autocomplete="off">
+    <div class="sr" id="sr"></div>
+  </div>
   <div class="stats-row" id="stats-row"></div>
   <div class="qg">
     <a class="qc" href="/绘梨衣_语音馆.html"><div class="qc-ic">🎙️</div><div class="qc-lb">语音馆</div><div class="qc-ds">27段声音档案</div></a>
@@ -208,6 +229,66 @@ async function refreshData() {
     );
   }
 }
+
+// ── 语义搜索 ──
+let _searchOpen = false;
+let _searchTimer = null;
+
+function toggleSearch() {
+  _searchOpen = !_searchOpen;
+  document.getElementById("sb-p").classList.toggle("on", _searchOpen);
+  document.getElementById("sb-btn").classList.toggle("on", _searchOpen);
+  if (_searchOpen) {
+    document.getElementById("sb-i").focus();
+  } else {
+    document.getElementById("sb-p").classList.remove("on");
+    document.getElementById("sr").innerHTML = "";
+  }
+}
+
+function escHtml(s) {
+  const d = document.createElement("div");
+  d.textContent = s || "";
+  return d.innerHTML;
+}
+
+async function doSearch(query) {
+  const sr = document.getElementById("sr");
+  if (!query || query.length < 2) {
+    sr.innerHTML = "";
+    return;
+  }
+  sr.innerHTML = '<div class="sr-e">搜索中…</div>';
+  const r = await fetchAPI("/api/search?q=" + encodeURIComponent(query) + "&top_k=8&min_score=0.25");
+  if (!r || !r.results || !r.results.length) {
+    sr.innerHTML = '<div class="sr-e">没有找到相关内容</div>';
+    return;
+  }
+  sr.innerHTML = r.results.map(item => {
+    const typeLabel = {diary:"📖日记", memory:"💭记忆", milestone:"🏁里程碑"}[item.entity_type] || "📄";
+    const title = item.display_title || "";
+    const content = (item.display_content || item.text || "").slice(0, 120);
+    const date = item.display_date || "";
+    return `<div class="sri" onclick="location.href=API+'/api/diaries/${date}'">
+      <div><div class="sri-ty">${typeLabel}</div></div>
+      <div class="sri-tx"><strong>${escHtml(title)}</strong><br>${escHtml(content)}<div class="sri-da">${date}</div></div>
+      <div class="sri-sc">${(item.score*100).toFixed(0)}%</div>
+    </div>`;
+  }).join("");
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+  const input = document.getElementById("sb-i");
+  if (input) {
+    input.addEventListener("input", function() {
+      clearTimeout(_searchTimer);
+      _searchTimer = setTimeout(() => doSearch(this.value.trim()), 300);
+    });
+    input.addEventListener("keydown", function(e) {
+      if (e.key === "Escape") toggleSearch();
+    });
+  }
+});
 
 // ── 设置 ──
 function openSettings() {

@@ -117,6 +117,17 @@ CREATE TABLE IF NOT EXISTS mood_assessments (
     created_at TEXT DEFAULT (datetime('now', 'localtime'))
 );
 
+-- 向量嵌入表（语义搜索）
+CREATE TABLE IF NOT EXISTS embeddings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entity_type TEXT NOT NULL,
+    entity_id INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    vector BLOB NOT NULL,
+    updated_at TEXT DEFAULT (datetime('now', 'localtime')),
+    UNIQUE(entity_type, entity_id)
+);
+
 -- 索引
 CREATE INDEX IF NOT EXISTS idx_diaries_date ON diaries(date);
 CREATE INDEX IF NOT EXISTS idx_memory_events_date ON memory_events(date);
@@ -126,6 +137,7 @@ CREATE INDEX IF NOT EXISTS idx_voice_files_category ON voice_files(category);
 CREATE INDEX IF NOT EXISTS idx_presence_timestamp ON presence_events(timestamp);
 CREATE INDEX IF NOT EXISTS idx_diary_moments_date ON diary_moments(date);
 CREATE INDEX IF NOT EXISTS idx_mood_assessments_date ON mood_assessments(date);
+CREATE INDEX IF NOT EXISTS idx_embeddings_type ON embeddings(entity_type);
 """
 
 
