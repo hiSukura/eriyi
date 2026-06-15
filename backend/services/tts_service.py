@@ -10,9 +10,9 @@ import torch
 import torch.nn as nn
 import soundfile as sf
 
-from config import VOICE_CLONE_DIR
+from config import BACKEND_DIR
 
-TTS_CACHE_DIR = VOICE_CLONE_DIR / "output"
+TTS_CACHE_DIR = BACKEND_DIR / "data" / "tts_cache"
 TTS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 # edge-tts 配置
@@ -21,8 +21,10 @@ EDGE_RATE = "-15%"
 EDGE_PITCH = "+2Hz"
 PROXY = "http://127.0.0.1:7897"
 
-# CPU训练的声音模型路径
-VOICE_MODEL_PATH = VOICE_CLONE_DIR / "GPT-SoVITS" / "output" / "eriyi_voice.pth"
+# 绘梨衣声音模型路径（独立于gitignored GPT-SoVITS目录）
+VOICE_MODEL_DIR = BACKEND_DIR / "models"
+VOICE_MODEL_DIR.mkdir(parents=True, exist_ok=True)
+VOICE_MODEL_PATH = VOICE_MODEL_DIR / "eriyi_voice.pth"
 SR = 22050
 N_FFT = 512
 HOP = 256
@@ -120,8 +122,8 @@ def diary_to_plaintext(md_text: str) -> str:
     return "\n".join(lines)
 
 
-# ═══════ 绘梨衣声音模型 V2 ═══════
-class ResBlock(nn.Module):
+# ═══════ 绘梨衣声音模型 V1（已训练权重兼容）═══════
+class _ResBlock(nn.Module):
     def __init__(self, ch):
         super().__init__()
         self.conv = nn.Sequential(
@@ -133,41 +135,61 @@ class ResBlock(nn.Module):
 
 
 class VoiceAE(nn.Module):
-    """VoiceAE V2 — 残差编码器/解码器，2.27M参数"""
+    """
+    VoiceAE V1 — 3级残差编解码器 ~440K参数
+    编码: 257→256→128→64→32  (3次下采样)
+    解码: 64→64→128→256→257  (3次上采样)
+    """
     def __init__(self):
         super().__init__()
         self.enc_in = nn.Conv1d(N_FREQ, 256, 7, padding=3)
-        self.enc_res1 = ResBlock(256)
+        self.enc_res1 = _ResBlock(256)
         self.enc_down1 = nn.Conv1d(256, 128, 4, stride=2, padding=1)
-        self.enc_res2 = ResBlock(128)
+        self.enc_res2a = _ResBlock(128)
+        self.enc_res2b = _ResBlock(128)
         self.enc_down2 = nn.Conv1d(128, 64, 4, stride=2, padding=1)
-        self.enc_res3 = ResBlock(64)
-        self.latent = nn.Linear(64, 64)
-        self.dec_up1 = nn.ConvTranspose1d(64, 128, 4, stride=2, padding=1)
-        self.dec_res1 = ResBlock(128)
-        self.dec_up2 = nn.ConvTranspose1d(128, 256, 4, stride=2, padding=1)
-        self.dec_res2 = ResBlock(256)
+        self.enc_res3a = _ResBlock(64)
+        self.enc_res3b = _ResBlock(64)
+        self.enc_down3 = nn.Conv1d(64, 32, 4, stride=2, padding=1)
+        self.enc_res4 = _ResBlock(32)
+        self.latent = nn.Linear(32, 64)
+        self.dec_up1 = nn.ConvTranspose1d(64, 64, 4, stride=2, padding=1)
+        self.dec_res1a = _ResBlock(64)
+        self.dec_res1b = _ResBlock(64)
+        self.dec_up2 = nn.ConvTranspose1d(64, 128, 4, stride=2, padding=1)
+        self.dec_res2a = _ResBlock(128)
+        self.dec_res2b = _ResBlock(128)
+        self.dec_up3 = nn.ConvTranspose1d(128, 256, 4, stride=2, padding=1)
+        self.dec_res3 = _ResBlock(256)
         self.dec_out = nn.Conv1d(256, N_FREQ, 7, padding=3)
 
     def forward(self, x):
         b, f, t_in = x.shape
-        pad = (4 - t_in % 4) % 4
-        if pad > 0:
+        pad = (8 - t_in % 8) % 8
+        if pad:
             x = torch.nn.functional.pad(x, (0, pad))
         h = torch.relu(self.enc_in(x))
         h = self.enc_res1(h)
         h = torch.relu(self.enc_down1(h))
-        h = self.enc_res2(h)
+        h = self.enc_res2a(h)
+        h = self.enc_res2b(h)
         h = torch.relu(self.enc_down2(h))
-        h = self.enc_res3(h)
+        h = self.enc_res3a(h)
+        h = self.enc_res3b(h)
+        h = torch.relu(self.enc_down3(h))
+        h = self.enc_res4(h)
         z = h.mean(dim=2)
         z = self.latent(z)
         t = h.shape[2]
         z = z.unsqueeze(-1).repeat(1, 1, t)
         h = torch.relu(self.dec_up1(z))
-        h = self.dec_res1(h)
+        h = self.dec_res1a(h)
+        h = self.dec_res1b(h)
         h = torch.relu(self.dec_up2(h))
-        h = self.dec_res2(h)
+        h = self.dec_res2a(h)
+        h = self.dec_res2b(h)
+        h = torch.relu(self.dec_up3(h))
+        h = self.dec_res3(h)
         out = self.dec_out(h)
         return out[:, :, :t_in]
 

@@ -39,11 +39,12 @@ def health_check() -> dict:
         checks["database"] = {"status": "error", "detail": str(e)}
 
     # 3. 语音模型
-    from services.tts_service import get_voice_model, VOICE_MODEL_PATH
+    from services.tts_service import get_voice_model, VOICE_MODEL_PATH, VOICE_MODEL_DIR
     model = get_voice_model()
     checks["voice_model"] = {
         "status": "ok" if model else "missing",
         "path": str(VOICE_MODEL_PATH),
+        "dir": str(VOICE_MODEL_DIR),
         "params": sum(p.numel() for p in model.parameters()) if model else 0,
     }
 
@@ -135,33 +136,32 @@ def consolidate_old_logs(max_age_days: int = 30) -> dict:
 def auto_retrain_voice() -> dict:
     """检测新音频 → 重训练VoiceAE → 择优保留"""
     import librosa, numpy as np, soundfile as sf
-    from pathlib import Path
     import datetime
 
     from config import VOICE_CLONE_DIR
+    from services.tts_service import (
+        get_voice_model, VoiceAE, SR, N_FFT, HOP, N_FREQ,
+        VOICE_MODEL_PATH, VOICE_MODEL_DIR,
+    )
+
     data_dir = VOICE_CLONE_DIR / "data"
-    # Try eriyi subdir
     if (data_dir / "eriyi").exists():
         data_dir = data_dir / "eriyi"
-    model_dir = VOICE_CLONE_DIR / "GPT-SoVITS" / "output"
-    model_dir.mkdir(parents=True, exist_ok=True)
-    model_path = model_dir / "eriyi_voice.pth"
+    elif (data_dir / "processed").exists():
+        data_dir = data_dir / "processed"
 
     if not data_dir.exists():
         return {"status": "no_data", "detail": str(data_dir)}
 
-    wavs = sorted(data_dir.glob("*.wav"))
+    wavs = sorted(data_dir.glob("*_22050.wav")) or sorted(data_dir.glob("*.wav"))
     if len(wavs) < 2:
         return {"status": "not_enough_data", "files": len(wavs)}
 
-    # 检查是否有新音频（比上次训练时多）
-    from services.tts_service import get_voice_model, VoiceAE, SR, N_FFT, HOP, N_FREQ
     prev_model = get_voice_model()
     prev_loss = None
-    if prev_model and model_path.exists():
+    if prev_model and VOICE_MODEL_PATH.exists():
         prev_loss = _eval_model(prev_model, wavs)
 
-    # 训练新模型
     print(f"  [Evolution] 自动训练 VoiceAE ({len(wavs)} clips)...")
     import torch, torch.nn as nn
 
@@ -189,14 +189,11 @@ def auto_retrain_voice() -> dict:
 
     new_loss = loss.item()
 
-    # 择优
-    backup_path = model_path.with_suffix(".backup.pth")
+    backup_path = VOICE_MODEL_PATH.with_suffix(".backup.pth")
     if prev_loss is None or new_loss < prev_loss:
-        if model_path.exists():
-            model_path.rename(backup_path)
-        torch.save(model.state_dict(), model_path)
-        # 清除模型缓存
-        from services.tts_service import _voice_model
+        if VOICE_MODEL_PATH.exists():
+            VOICE_MODEL_PATH.rename(backup_path)
+        torch.save(model.state_dict(), VOICE_MODEL_PATH)
         import services.tts_service as tts
         tts._voice_model = None
         status = "improved"
@@ -208,7 +205,7 @@ def auto_retrain_voice() -> dict:
         "new_loss": round(new_loss, 6),
         "prev_loss": round(prev_loss, 6) if prev_loss else None,
         "clips": len(wavs),
-        "saved": model_path.exists(),
+        "saved": VOICE_MODEL_PATH.exists(),
         "timestamp": datetime.datetime.now().isoformat(),
     }
 

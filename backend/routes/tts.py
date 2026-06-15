@@ -13,7 +13,7 @@ from pydantic import BaseModel
 router = APIRouter(prefix="/api/tts", tags=["tts"])
 
 VOICE_CLONE_DIR = Path(__file__).parent.parent.parent / "voice_clone"
-OUTPUT_DIR = VOICE_CLONE_DIR / "output"
+OUTPUT_DIR = Path(__file__).parent.parent / "data" / "tts_cache"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 PROXY = "http://127.0.0.1:7897"
@@ -34,13 +34,15 @@ class TTSRequest(BaseModel):
 @router.get("/status")
 def api_status():
     """TTS 状态 — 当前用什么引擎"""
-    from services.tts_service import VOICE_MODEL_PATH
+    from services.tts_service import get_voice_model, VOICE_MODEL_PATH
+    model = get_voice_model()
     engine = "eriyi-voice-ae" if VOICE_MODEL_PATH.exists() else "edge-tts"
+    params = sum(p.numel() for p in model.parameters()) if model else 0
     return {
         "engine": engine,
         "model_ready": VOICE_MODEL_PATH.exists(),
-        "model_params": 226529,
-        "note": "VoiceAE 226K参数 · CPU训练",
+        "model_params": params,
+        "note": f"VoiceAE {params//1000}K参数 · CPU训练",
     }
 
 
