@@ -1,0 +1,32 @@
+# 绘梨衣 · 一键部署
+version: "3.8"
+
+services:
+  eriyi:
+    build: .
+    container_name: eriyi-backend
+    ports:
+      - "5432:5432"
+    volumes:
+      # 运行时数据（数据库、TTS缓存）
+      - ./backend/data:/app/backend/data
+      # 声音模型（可独立更新）
+      - ./backend/models:/app/backend/models
+      # 声音克隆训练数据与输出
+      - ./voice_clone:/app/voice_clone
+      # 参考音频库
+      - ./语音:/app/语音
+      # 日记归档
+      - ./绘梨衣日记:/app/绘梨衣日记
+    restart: unless-stopped
+    environment:
+      - TTS_PROXY=${TTS_PROXY:-}
+      - QQMAIL_USER=${QQMAIL_USER:-}
+      - QQMAIL_PASS=${QQMAIL_PASS:-}
+      - QQMAIL_TO=${QQMAIL_TO:-}
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:5432/api/health')"]
+      interval: 60s
+      timeout: 5s
+      start_period: 15s
+      retries: 3

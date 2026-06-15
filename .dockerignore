@@ -1,0 +1,31 @@
+# Git
+.git/
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 运行时数据（卷挂载，不打包进镜像）
+backend/data/
+backend/models/
+
+# 大型第三方仓库
+voice_clone/GPT-SoVITS/
+
+# Node 依赖
+node_modules/
+
+# 生成产物
+downloads/
+
+# IDE / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# 构建文件自身
+Dockerfile
+docker-compose.yml
+.dockerignore
+.gitignore
