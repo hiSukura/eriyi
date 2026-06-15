@@ -168,24 +168,11 @@ def analyze_today_pattern() -> dict:
 
 
 def _get_time_period(now: datetime = None) -> str:
-    """当前时段"""
-    if now is None:
-        now = datetime.now()
-    h = now.hour
-    if 5 <= h < 9:
-        return "清晨"
-    elif 9 <= h < 12:
-        return "上午"
-    elif 12 <= h < 14:
-        return "中午"
-    elif 14 <= h < 18:
-        return "下午"
-    elif 18 <= h < 22:
-        return "晚上"
-    elif 22 <= h < 24:
-        return "深夜"
-    else:
-        return "凌晨"
+    """当前时段（委托 config 统一逻辑）"""
+    from config import get_time_period as _gp
+    if now is not None:
+        return _gp(now.hour)
+    return _gp()
 
 
 def get_rest_settings() -> dict:

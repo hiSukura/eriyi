@@ -63,21 +63,8 @@ def get_status_history(limit: int = 24) -> list[dict]:
 
 def get_time_period() -> str:
     """根据当前时间判断时段"""
-    hour = datetime.now().hour
-    if 5 <= hour < 8:
-        return "清晨"
-    elif 8 <= hour < 12:
-        return "上午"
-    elif 12 <= hour < 14:
-        return "午后"
-    elif 14 <= hour < 17:
-        return "下午"
-    elif 17 <= hour < 19:
-        return "傍晚"
-    elif 19 <= hour < 23:
-        return "深夜"
-    else:
-        return "凌晨"
+    from config import get_time_period as _gp
+    return _gp()
 
 
 def _enrich_status(state: dict) -> dict:

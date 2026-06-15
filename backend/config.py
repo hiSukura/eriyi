@@ -41,3 +41,23 @@ TTS_PROXY = os.environ.get("TTS_PROXY", "")
 ELISHA_VERSION = "3.0.0"
 ELISHA_NAME = "绘梨衣"
 ELISHA_COLOR = "#E8543E"  # 灯笼红
+
+# ═══════ 时段定义（统一入口）═══════
+PERIOD_RANGES = [
+    (5,  8,  "清晨"),
+    (8,  12, "上午"),
+    (12, 14, "午后"),
+    (14, 18, "下午"),
+    (18, 21, "傍晚"),
+    (21, 24, "深夜"),
+]
+
+def get_time_period(hour: int | None = None) -> str:
+    """根据小时返回时段名称（7时段）"""
+    if hour is None:
+        from datetime import datetime
+        hour = datetime.now().hour
+    for start, end, name in PERIOD_RANGES:
+        if start <= hour < end:
+            return name
+    return "凌晨"
