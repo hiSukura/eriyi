@@ -151,8 +151,6 @@ body {
 </div>
 <div class="visualizer-bar" id="vizBar"></div>
 
-<audio id="audio" style="display:none"></audio>
-
 <script>
 // ============================================================
 // 语音数据
@@ -185,27 +183,9 @@ const VOICE_DATA = [
   { file:'最后的旅行_参考音频.mp3', title:'最后的旅行', desc:'夏螟虫虫念白 · 声音克隆目标音频', cat:'参考', icon:'🎵', tags:['克隆源'] },
 ];
 
-const cats = ['最终版','初版','参考版','对比','日记','参考'];
-
 // ============================================================
-// 渲染
+// API 驱动
 // ============================================================
-let currentCat = '最终版';
-
-function renderNav() {
-  const nav = document.getElementById('nav');
-  nav.innerHTML = cats.map(c =>
-    `<button class="nav-btn${c===currentCat?' active':''}" onclick="switchCat('${c}')">${c}</button>`
-  ).join('');
-}
-
-function switchCat(cat) {
-  currentCat = cat;
-  renderNav();
-  renderTracks();
-}
-
-// ===== v2.0 API驱动加载 =====
 let _apiVoices = null;
 
 async function loadVoicesFromAPI() {
@@ -217,7 +197,7 @@ async function loadVoicesFromAPI() {
       items: (data.items || []).map(v => ({
         file: v.filename,
         title: v.title || v.filename,
-        desc: v.category || '',
+        desc: v.description || v.category || '',
         cat: v.category || '未分类',
         icon: '🎙️',
         url: v.url || `/api/voices/${v.filename}/stream`,
@@ -231,26 +211,37 @@ async function loadVoicesFromAPI() {
   }
 }
 
+// ============================================================
+// 渲染 — API 优先，无后端时使用硬编码数据
+// ============================================================
+let currentCat = '最终版';
+
+function getCategories() {
+  if (_apiVoices && _apiVoices.categories.length) return _apiVoices.categories;
+  return ['最终版','初版','参考版','对比','日记','参考'];
+}
+
+function renderNav() {
+  const nav = document.getElementById('nav');
+  const cs = getCategories();
+  nav.innerHTML = cs.map(c =>
+    `<button class="nav-btn${c===currentCat?' active':''}" onclick="switchCat('${c}')">${c}</button>`
+  ).join('');
+}
+
+function switchCat(cat) {
+  currentCat = cat;
+  renderNav();
+  renderTracks();
+}
+
 async function renderTracks() {
   const list = document.getElementById('trackList');
-  
-  // 优先后端API
   if (!_apiVoices) await loadVoicesFromAPI();
   
   let tracks;
-  let cats_list = cats;
-  
   if (_apiVoices) {
     tracks = _apiVoices.items.filter(v => v.cat === currentCat);
-    cats_list = _apiVoices.categories.length ? _apiVoices.categories : cats;
-    // 更新导航
-    if (_apiVoices.categories.length) {
-      cats.length = 0;
-      cats.push(..._apiVoices.categories);
-      document.getElementById('nav').innerHTML = _apiVoices.categories.map(c =>
-        `<button class="nav-btn${c===currentCat?' active':''}" onclick="switchCat('${c}')">${c}</button>`
-      ).join('');
-    }
   } else {
     tracks = VOICE_DATA.filter(v => v.cat === currentCat);
   }
@@ -264,7 +255,6 @@ async function renderTracks() {
   list.innerHTML = tracks.map((v,i) => {
     const id = `track-${currentCat}-${i}`;
     const url = v.url || `语音/${v.file}`;
-    const isAPI = !!v.url;
     return `<div class="track" id="${id}" onclick="playTrackUrl('${url}','${id}')">
       <div class="track-icon">${v.icon}</div>
       <div class="track-info">
@@ -331,15 +321,6 @@ function playTrackUrl(url, idOrBtn) {
   renderNav();
   renderTracks();
 })();
-
-audio.addEventListener('pause', () => {
-  if (currentPlaying) {
-    document.getElementById(currentPlaying)?.classList.remove('playing');
-    clearInterval(waveIntervals[currentPlaying]);
-    document.getElementById('vizBar').classList.remove('active');
-    currentPlaying = null;
-  }
-});
 
 // 涟漪
 document.addEventListener('click', function(e) {
