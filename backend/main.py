@@ -174,6 +174,31 @@ async def serve_audio(filename: str):
     return JSONResponse({"error": "文件不存在"}, status_code=404)
 
 
+# ─── PWA 静态资源 ───
+@app.get("/sw.js")
+async def serve_sw():
+    sw_path = PROJECT_ROOT / "sw.js"
+    if sw_path.exists():
+        return FileResponse(str(sw_path), media_type="application/javascript")
+    return JSONResponse({"error": "not found"}, status_code=404)
+
+
+@app.get("/manifest.json")
+async def serve_manifest():
+    mf_path = PROJECT_ROOT / "manifest.json"
+    if mf_path.exists():
+        return FileResponse(str(mf_path), media_type="application/manifest+json")
+    return JSONResponse({"error": "not found"}, status_code=404)
+
+
+@app.get("/icons/{icon_name}")
+async def serve_icon(icon_name: str):
+    icon_path = PROJECT_ROOT / "icons" / icon_name
+    if icon_path.exists():
+        return FileResponse(str(icon_path), media_type="image/png")
+    return JSONResponse({"error": "not found"}, status_code=404)
+
+
 # ─── 主入口 ───
 if __name__ == "__main__":
     import uvicorn

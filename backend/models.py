@@ -90,10 +90,13 @@ class VoiceResponse(BaseModel):
 class DashboardResponse(BaseModel):
     status: StatusResponse
     today_diary: Optional[DiaryResponse] = None
+    recent_diaries: list[DiaryResponse] = []
     recent_memories: list[MemoryResponse] = []
     voice_categories: dict
     stats: dict
-    recent_diaries: list[DiaryResponse] = []
+    presence: dict = {}
+    moments: list[dict] = []
+    recent_milestones: list[dict] = []
 
 
 # ─── 通用 ───
