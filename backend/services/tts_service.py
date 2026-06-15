@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 import soundfile as sf
 
-from config import BACKEND_DIR
+from config import BACKEND_DIR, TTS_PROXY
 
 TTS_CACHE_DIR = BACKEND_DIR / "data" / "tts_cache"
 TTS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -19,7 +19,14 @@ TTS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 EDGE_VOICE = "zh-CN-XiaoxiaoNeural"
 EDGE_RATE = "-15%"
 EDGE_PITCH = "+2Hz"
-PROXY = "http://127.0.0.1:7897"
+
+# 初始化代理环境变量（edge-tts 底层 aiohttp 读取）
+import os as _os
+if TTS_PROXY:
+    _os.environ.setdefault("HTTP_PROXY", TTS_PROXY)
+    _os.environ.setdefault("HTTPS_PROXY", TTS_PROXY)
+    _os.environ.setdefault("http_proxy", TTS_PROXY)
+    _os.environ.setdefault("https_proxy", TTS_PROXY)
 
 # 绘梨衣声音模型路径（独立于gitignored GPT-SoVITS目录）
 VOICE_MODEL_DIR = BACKEND_DIR / "models"
@@ -31,19 +38,50 @@ HOP = 256
 N_FREQ = N_FFT // 2 + 1
 
 
+async def _edge_tts_save(text: str, output_path: Path,
+                         voice: str = EDGE_VOICE,
+                         rate: str = EDGE_RATE,
+                         pitch: str = EDGE_PITCH,
+                         proxy: str | None = None) -> bool:
+    """底层：用 edge-tts 合成语音存为文件"""
+    import edge_tts
+    kwargs = dict(text=text, voice=voice, rate=rate, pitch=pitch)
+    if proxy:
+        kwargs["proxy"] = proxy
+    c = edge_tts.Communicate(**kwargs)
+    await c.save(str(output_path))
+    return output_path.exists()
+
+
 async def generate_edge_tts(text: str, output_path: Path) -> bool:
-    """使用 edge-tts 生成语音 MP3"""
+    """使用 edge-tts 生成语音（默认配置）"""
     try:
-        import edge_tts
-        communicate = edge_tts.Communicate(
-            text=text, voice=EDGE_VOICE,
-            rate=EDGE_RATE, pitch=EDGE_PITCH,
-            proxy=PROXY,
-        )
-        await communicate.save(str(output_path))
-        return output_path.exists()
+        proxy = TTS_PROXY if TTS_PROXY else None
+        return await _edge_tts_save(text, output_path, proxy=proxy)
     except ImportError:
         print("  [TTS] edge-tts 未安装，尝试 pip install edge-tts")
+        return False
+    except Exception as e:
+        print(f"  [TTS] edge-tts 错误: {e}")
+        return False
+
+
+def run_edge_tts_sync(text: str, output_path: Path,
+                      voice: str = EDGE_VOICE,
+                      rate: str = EDGE_RATE,
+                      pitch: str = EDGE_PITCH) -> bool:
+    """同步方式运行 edge-tts（给 FastAPI 同步路由使用）"""
+    try:
+        proxy = TTS_PROXY if TTS_PROXY else None
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        ok = loop.run_until_complete(
+            _edge_tts_save(text, output_path, voice=voice, rate=rate, pitch=pitch, proxy=proxy)
+        )
+        loop.close()
+        return ok
+    except ImportError:
+        print("  [TTS] edge-tts 未安装")
         return False
     except Exception as e:
         print(f"  [TTS] edge-tts 错误: {e}")

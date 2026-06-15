@@ -34,6 +34,9 @@ VOICE_CLONE_DIR = PROJECT_ROOT / "voice_clone"
 HOST = os.environ.get("ELISHA_HOST", "127.0.0.1")
 PORT = int(os.environ.get("ELISHA_PORT", "5432"))
 
+# TTS 代理 — 留空=直连, 设如 http://127.0.0.1:7897
+TTS_PROXY = os.environ.get("TTS_PROXY", "")
+
 # 绘梨衣信息
 ELISHA_VERSION = "3.0.0"
 ELISHA_NAME = "绘梨衣"
