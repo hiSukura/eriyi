@@ -43,3 +43,11 @@ async def add_memory(data: dict):
         from datetime import datetime
         data["date"] = datetime.now().strftime("%Y-%m-%d")
     return memory_service.add_memory(data)
+
+
+@router.post("/import")
+async def import_memories():
+    """从 MEMORY.md 导入记忆到数据库"""
+    from services.memory_importer import import_memory_md as _import
+    stats = _import()
+    return {"message": f"导入完成: 新增 {stats['imported']} 条, 跳过 {stats['skipped']} 条, 向量 {stats['embedded']} 条"}

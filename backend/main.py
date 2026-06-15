@@ -50,8 +50,19 @@ async def lifespan(app: FastAPI):
             e_stats = embedding_service.rebuild_all(force=False)
             if e_stats["total"]:
                 print(f"   语义索引: {e_stats['total']} 条向量已就绪")
+            else:
+                print(f"   语义索引: 新编码 {e_stats['total']} 条")
         except Exception as e:
             print(f"   语义索引警告: {e}")
+
+        # 从 MEMORY.md 导入记忆
+        try:
+            from services.memory_importer import import_memory_md
+            m_stats = import_memory_md()
+            if m_stats["imported"]:
+                print(f"   记忆导入: 新增 {m_stats['imported']} 条 (跳过 {m_stats['skipped']})")
+        except Exception as e:
+            print(f"   记忆导入警告: {e}")
     except Exception as e:
         print(f"   同步警告: {e}")
 
