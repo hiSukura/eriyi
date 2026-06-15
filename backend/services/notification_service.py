@@ -1,9 +1,19 @@
 """
 通知服务 · 多渠道消息推送
-支持 QQ邮箱（已连接）/ 企业微信（待连接）
+支持 QQ邮箱（环境变量配置）/ 企业微信（待连接）
+
+环境变量:
+  QQMAIL_USER    — QQ邮箱地址（如 eriyi@qq.com）
+  QQMAIL_PASS    — SMTP授权码（非登录密码）
+  QQMAIL_TO      — 收件人邮箱（Sukura的邮箱）
+  留空则不实际发送，仅记录日志。
 """
 import json
+import os
+import smtplib
 import time
+from email.mime.text import MIMEText
+from email.header import Header
 from datetime import datetime
 from database import get_db, dict_from_row, rows_to_dicts
 
@@ -100,14 +110,16 @@ def get_recent_log(limit: int = 20) -> list[dict]:
 
 
 def get_available_channels() -> list[dict]:
-    """返回可用通知渠道"""
+    """返回可用通知渠道（动态检测 QQ邮箱 配置状态）"""
     settings = _get_settings()
     return [
         {
             "id": "qqmail",
             "name": "QQ邮箱",
             "enabled": settings.get("qqmail_enabled", True),
-            "status": "connected",
+            "status": "connected" if is_qqmail_ready() else "not_configured",
+            "user": _QQMAIL_USER or "",
+            "to": _QQMAIL_TO or "",
         },
         {
             "id": "wecom",
@@ -116,6 +128,70 @@ def get_available_channels() -> list[dict]:
             "status": "disconnected",
         },
     ]
+
+
+# ═══════ QQ邮箱发送器 ═══════
+_QQMAIL_USER = os.environ.get("QQMAIL_USER", "")
+_QQMAIL_PASS = os.environ.get("QQMAIL_PASS", "")
+_QQMAIL_TO = os.environ.get("QQMAIL_TO", "")
+_QQMAIL_HOST = "smtp.qq.com"
+_QQMAIL_PORT = 465
+
+
+def is_qqmail_ready() -> bool:
+    """检查 QQ邮箱 配置是否完整"""
+    return bool(_QQMAIL_USER and _QQMAIL_PASS and _QQMAIL_TO)
+
+
+def send_qqmail(subject: str, body: str) -> bool:
+    """通过 QQ邮箱 SMTP 发送邮件"""
+    if not is_qqmail_ready():
+        return False
+    try:
+        msg = MIMEText(body, "plain", "utf-8")
+        msg["Subject"] = Header(subject, "utf-8")
+        msg["From"] = _QQMAIL_USER
+        msg["To"] = _QQMAIL_TO
+
+        with smtplib.SMTP_SSL(_QQMAIL_HOST, _QQMAIL_PORT, timeout=10) as s:
+            s.login(_QQMAIL_USER, _QQMAIL_PASS)
+            s.send_message(msg)
+        return True
+    except Exception as e:
+        print(f"  [QQMail] 发送失败: {e}")
+        return False
+
+
+def send_notification(trigger_type: str, context: dict = None) -> dict:
+    """发送通知（尝试真实发送，失败则降级为日志）"""
+    if not can_send(trigger_type):
+        return {"success": False, "reason": "通知被频率限制或已禁用"}
+
+    content = build_notification_content(trigger_type, context)
+    channel = "qqmail"
+    sent = False
+
+    if is_qqmail_ready():
+        sent = send_qqmail(content["subject"], content["body"])
+        status = "sent" if sent else "failed"
+    else:
+        status = "pending"
+
+    mark_sent(trigger_type)
+    log_notification(channel, trigger_type, status, content["subject"])
+
+    return {
+        "success": sent if is_qqmail_ready() else None,
+        "channel": channel,
+        "trigger_type": trigger_type,
+        "subject": content["subject"],
+        "body": content["body"],
+        "status": status,
+        "note": "" if sent else (
+            "QQ邮箱未配置（设置 QQMAIL_USER / QQMAIL_PASS / QQMAIL_TO 环境变量）"
+            if not is_qqmail_ready() else "发送失败，请检查 SMTP 配置"
+        ),
+    }
 
 
 def build_notification_content(trigger_type: str, context: dict = None) -> dict:

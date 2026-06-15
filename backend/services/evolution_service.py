@@ -6,7 +6,7 @@ Phase 6 · 自主进化服务
 """
 from datetime import datetime, timedelta
 from pathlib import Path
-from config import DATA_DIR, MEMORY_DIR
+from config import DATA_DIR, MEMORY_DIR, DATABASE_PATH
 
 
 def health_check() -> dict:
@@ -27,14 +27,14 @@ def health_check() -> dict:
     # 2. 数据库
     try:
         import sqlite3
-        db_path = DATA_DIR / "eriyi.db"
+        db_path = DATABASE_PATH
         if db_path.exists():
             conn = sqlite3.connect(str(db_path))
             tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
             conn.close()
-            checks["database"] = {"status": "ok", "tables": len(tables)}
+            checks["database"] = {"status": "ok", "tables": len(tables), "path": str(db_path)}
         else:
-            checks["database"] = {"status": "missing"}
+            checks["database"] = {"status": "missing", "path": str(db_path)}
     except Exception as e:
         checks["database"] = {"status": "error", "detail": str(e)}
 
@@ -315,9 +315,9 @@ def analyze_schedule() -> dict:
     import sqlite3, datetime
     from collections import Counter
 
-    db_path = DATA_DIR / "eriyi.db"
+    db_path = DATABASE_PATH
     if not db_path.exists():
-        return {"status": "no_data"}
+        return {"status": "no_data", "path": str(db_path)}
 
     conn = sqlite3.connect(str(db_path))
     rows = conn.execute(

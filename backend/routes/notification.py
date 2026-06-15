@@ -8,10 +8,7 @@ from services.notification_service import (
     update_settings,
     get_recent_log,
     get_available_channels,
-    build_notification_content,
-    can_send,
-    mark_sent,
-    log_notification,
+    send_notification,
 )
 
 router = APIRouter(prefix="/api/notification", tags=["notification"])
@@ -58,22 +55,5 @@ def api_get_log(limit: int = 20):
 
 @router.post("/send")
 def api_send(body: SendRequest):
-    """触发通知（返回通知内容，实际发送由自动化执行）"""
-    if not can_send(body.trigger_type):
-        return {
-            "success": False,
-            "reason": "通知被频率限制或已禁用",
-        }
-
-    content = build_notification_content(body.trigger_type)
-    mark_sent(body.trigger_type)
-    log_notification(body.channel, body.trigger_type, "pending", content["subject"])
-
-    return {
-        "success": True,
-        "channel": body.channel,
-        "trigger_type": body.trigger_type,
-        "subject": content["subject"],
-        "body": content["body"],
-        "note": "请使用 QQ邮箱 connector 将此内容发送给 Sukura",
-    }
+    """触发通知（QQ邮箱已配置则真实发送，否则仅记录日志）"""
+    return send_notification(body.trigger_type)
